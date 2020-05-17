@@ -1,7 +1,11 @@
-﻿
+﻿; Aeon Flux
+;
+; Author: Rene Damm
+; Started: 16-May-20
+
 EnableExplicit
 
-#VectorRendering = 0
+#VectorRendering = #False
 
 ExamineDesktops()
 
@@ -26,7 +30,6 @@ Enumeration CursorMode
   #CursorModeUnderline
 EndEnumeration
 
-Define Line.s = "Try This"
 Define CursorPositionInLine.i = 4
 Define CursorMode.i = #CursorModeBlock
 Define EditMode.i = #NormalMode
@@ -34,10 +37,10 @@ Define EditMode.i = #NormalMode
 ;store text in memory as UTF-8 and use the same single set of temp strings (UTF-16) for rendering?
 
 ; Set up text buffer.
-Define TextBufferLeftSize.i = 256
-Define TextBufferRightSize.i = 256
-Define TextBufferLeft.s = Space( TextBufferLeftSize )
-Define TextBufferRight.s = Space( TextBufferRightSize )
+Define TextBufferLeftLength.i = 256
+Define TextBufferRightLength.i = 256
+Define TextBufferLeft.s = Space( TextBufferLeftLength )
+Define TextBufferRight.s = Space( TextBufferRightLength )
 Define *TextBufferLeft = @TextBufferLeft
 Define *TextBufferRight = @TextBufferRight
 Define TextBufferCursor.s = Space( 1 )
@@ -51,9 +54,14 @@ CopyMemory( @TextRight, *TextBufferRight, 4 * 2 ) ; Include NUL.
 
 PokeC( *TextBufferCursor, 'T' )
 
+Define TextLengthLeft = Len( TextLeft )
+Define TextLengthRight = Len( TextRight )
+Define TextLength.i = TextLengthLeft + 1 + TextLengthRight
+
 ;==============================================================================
 
 Procedure SwitchToEditMode( Mode.i )
+  
   Shared EditMode
   Shared CursorMode
   
@@ -103,14 +111,14 @@ EndProcedure
 
 Procedure MoveCursorRight()
   
-  Shared Line
+  Shared TextLength
   Shared CursorPositionInLine
   Shared *TextBufferCursor
   Shared *TextBufferLeft
   Shared *TextBufferRight
   
   ; Stop at last character.
-  If CursorPositionInLine = Len( Line ) - 1
+  If CursorPositionInLine = TextLength - 1
     ProcedureReturn
   EndIf
   
@@ -128,6 +136,40 @@ Procedure MoveCursorRight()
 EndProcedure
 
 ;==============================================================================
+
+Procedure InsertCharacterAtCursor( Character.c )
+  
+  Shared TextBufferLeft
+  Shared *TextBufferLeft
+  Shared TextLengthLeft
+  Shared TextBufferLeftLength
+  Shared CursorPositionInLine
+  Shared TextLength
+  
+  ; Increase buffer size, if necessary.
+  If TextLengthLeft + 1 = TextBufferLeftLength
+    Define NewLeftBufferLength = TextBufferLeftLength + 256
+    Define NewLeftBuffer.s = Space( NewLeftBufferLength )
+    CopyMemory( *TextBufferLeft, @NewLeftBuffer, TextLengthLeft * 2 ) ; Without NUL.
+    TextBufferLeft = NewLeftBuffer
+    *TextBufferLeft = @NewLeftBuffer
+    TextBufferLeftLength = NewLeftBufferLength
+  EndIf
+  
+  ; Append character to left buffer.
+  Define *CharacterPtr = *TextBufferLeft + TextLengthLeft * 2
+  PokeC( *CharacterPtr, Character )
+  PokeC( *CharacterPtr + 2, 0 )
+  
+  CursorPositionInLine + 1
+  TextLength + 1
+  TextLengthLeft + 1
+  
+EndProcedure
+
+;==============================================================================
+
+Define EatNextCharacter.i = #False
 
 ; Main loop.
 Repeat
@@ -151,6 +193,8 @@ Repeat
                 MoveCursorRight()
               Case #PB_Shortcut_I
                 SwitchToEditMode( #InsertMode )
+                ; Suppress insertion of 'i' character.
+                EatNextCharacter = #True
             EndSelect
           Case #InsertMode
             Select Key
@@ -159,8 +203,11 @@ Repeat
             EndSelect
         EndSelect
       Case #PB_EventType_Input
-        Define Input = GetGadgetAttribute( Canvas, #PB_Canvas_Input )
-        ;Line = Line + Chr( Input )
+        If EditMode = #InsertMode And Not EatNextCharacter
+          Define Input = GetGadgetAttribute( Canvas, #PB_Canvas_Input )
+          InsertCharacterAtCursor( Input )
+        EndIf
+        EatNextCharacter = #False
     EndSelect
     
     ; Draw.
@@ -242,8 +289,8 @@ Until Event = #PB_Event_CloseWindow
 ;[X] TODO Render cursor (block)
 ;[X] TODO Move cursor with H and L (vertical movement will have to wait until we have multiple lines)
 ;[X] TODO Use fixed-width font
-;[ ] TODO Switch to insert mode and back
-;[ ] TODO Insert characters
+;[X] TODO Switch to insert mode and back
+;[X] TODO Insert characters
 ;...
 ;[ ] Redraw only changed portion of the text (dirty rectangles)
 ;...
@@ -270,8 +317,8 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 227
-; FirstLine = 204
+; CursorPosition = 292
+; FirstLine = 271
 ; Folding = -
 ; EnableXP
 ; HideErrorLog
