@@ -83,6 +83,8 @@ Procedure MoveCursorLeft()
   Shared *TextBufferRight
   Shared *TextBufferCursor
   Shared *TextBufferLeft
+  Shared TextLengthLeft
+  Shared TextLengthRight
   
   ; Stop at first character.
   If CursorPositionInLine = 0
@@ -92,6 +94,7 @@ Procedure MoveCursorLeft()
   ; Prepend current cursor character to right buffer.
   MoveMemory( *TextBufferRight, *TextBufferRight + 2, MemoryStringLength( *TextBufferRight ) * 2 + 2 ) ; Include NUL.
   PokeC( *TextBufferRight, PeekC( *TextBufferCursor ) )
+  TextLengthRight + 1
   
   ; Cycle end of left buffer into cursor character.
   If CursorPositionInLine = 1
@@ -103,6 +106,7 @@ Procedure MoveCursorLeft()
     PokeC( *TextBufferCursor, PeekC( *LastCharOffset ) )
     PokeC( *LastCharOffset, 0 )
   EndIf
+  TextLengthLeft - 1
   CursorPositionInLine - 1
   
 EndProcedure
@@ -116,6 +120,8 @@ Procedure MoveCursorRight()
   Shared *TextBufferCursor
   Shared *TextBufferLeft
   Shared *TextBufferRight
+  Shared TextLengthLeft
+  Shared TextLengthRight
   
   ; Stop at last character.
   If CursorPositionInLine = TextLength - 1
@@ -126,10 +132,12 @@ Procedure MoveCursorRight()
   Define TextBufferLeftLengthInChars = MemoryStringLength( *TextBufferLeft )
   PokeC( *TextBufferLeft + TextBufferLeftLengthInChars * 2, PeekC( *TextBufferCursor ) )
   PokeC( *TextBufferLeft + TextBufferLeftLengthInChars * 2 + 2, 0 )
+  TextLengthLeft + 1
   
   ; Cycle beginning of right buffer into cursor character.
   PokeC( *TextBufferCursor, PeekC( *TextBufferRight ) )
-  MoveMemory( *TextBufferRight + 2, *TextBufferRight, MemoryStringLength( *TextBufferRight ) * 2 ) ; Include NUL.
+  MoveMemory( *TextBufferRight + 2, *TextBufferRight, MemoryStringLength( *TextBufferRight ) * 2 ) ; Include NUL.]
+  TextLengthRight - 1
   
   CursorPositionInLine + 1
   
@@ -291,6 +299,7 @@ Until Event = #PB_Event_CloseWindow
 ;[X] TODO Use fixed-width font
 ;[X] TODO Switch to insert mode and back
 ;[X] TODO Insert characters
+;[ ] TODO 
 ;...
 ;[ ] Redraw only changed portion of the text (dirty rectangles)
 ;...
@@ -317,8 +326,8 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 292
-; FirstLine = 271
+; CursorPosition = 108
+; FirstLine = 79
 ; Folding = -
 ; EnableXP
 ; HideErrorLog
