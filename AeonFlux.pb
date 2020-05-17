@@ -9,9 +9,15 @@ EnableExplicit
 
 ExamineDesktops()
 
+Define CanvasWidth.i = DesktopWidth( 0 )
+Define CanvasHeight.i = DesktopHeight( 0 )
+
+Define TextColor.i = #Black
+Define BackgroundColor.i = #White
+
 ; Create window.
-Define Window.i = OpenWindow( #PB_Any, 0, 0, DesktopWidth( 0 ), DesktopHeight( 0 ), "Aeon Flux", #PB_Window_BorderLess )
-Define Canvas.i = CanvasGadget( #PB_Any, 0, 0, DesktopWidth( 0 ), DesktopHeight( 0 ), #PB_Canvas_Keyboard )
+Define Window.i = OpenWindow( #PB_Any, 0, 0, CanvasWidth, CanvasHeight, "Aeon Flux", #PB_Window_BorderLess )
+Define Canvas.i = CanvasGadget( #PB_Any, 0, 0, CanvasWidth, CanvasHeight, #PB_Canvas_Keyboard )
 SetActiveGadget( Canvas )
 
 Define Font = LoadFont( #PB_Any, "Consolas", 16, #PB_Font_HighQuality )
@@ -43,17 +49,13 @@ Define *TextBufferRight = @TextBufferRight
 Define TextBufferCursor.s = Space( 1 )
 Define *TextBufferCursor = @TextBufferCursor
 
-Define TextLeft.s = ""
-Define TextRight.s = ""
-
-Define TextLengthLeft = Len( TextLeft )
-Define TextLengthRight = Len( TextRight )
-Define TextLength.i = TextLengthLeft + 1 + TextLengthRight
-
-CopyMemory( @TextLeft, *TextBufferLeft, TextLengthLeft * 2 + 2 ) ; Include NUL.
-CopyMemory( @TextRight, *TextBufferRight, TextLengthRight * 2 + 2 ) ; Include NUL.
+Define TextLengthLeft.i = 0
+Define TextLengthRight.i = 0
+Define TextLength.i = TextLengthLeft + 0 + TextLengthRight
 
 PokeC( *TextBufferCursor, 0 )
+PokeC( *TextBufferLeft, 0 )
+PokeC( *TextBufferRight, 0 )
 
 ;==============================================================================
 
@@ -157,6 +159,26 @@ EndProcedure
 
 ;==============================================================================
 
+Procedure DeleteCharacterBackwardsFromCursor()
+  
+  Shared *TextBufferLeft
+  Shared TextLengthLeft
+  Shared TextLength
+  Shared CursorPositionInLine
+  
+  If TextLengthLeft = 0
+    ProcedureReturn
+  EndIf
+  
+  TextLengthLeft - 1
+  PokeC( *TextBufferLeft + TextLengthLeft * 2, 0 )
+  CursorPositionInLine - 1
+  TextLength - 1
+  
+EndProcedure
+
+;==============================================================================
+
 Procedure SwitchToEditMode( Mode.i )
   
   Shared EditMode
@@ -170,7 +192,7 @@ Procedure SwitchToEditMode( Mode.i )
       CursorMode = #CursorModeBlock
       ;TODO get rid of this behavior
       ; If we're at end of line, move left one position.
-      If CursorPositionInLine = TextLength - 1 And TextLength > 0
+      If CursorPositionInLine = TextLength And TextLength > 0
         MoveCursorLeft()
       EndIf
     Case #InsertMode
@@ -210,6 +232,8 @@ Repeat
             EndSelect
           Case #InsertMode
             Select Key
+              Case #PB_Shortcut_Back
+                DeleteCharacterBackwardsFromCursor()
               Case #PB_Shortcut_Escape
                 SwitchToEditMode( #NormalMode )
             EndSelect
@@ -272,20 +296,23 @@ Repeat
         Define TextWidthCursor = TextWidth( TextBufferCursor )
         Define TextHeightLeft = TextHeight( TextBufferLeft )
         
+        ; Clear line.
+        Box( 100, 100, CanvasWidth, TextHeightLeft, BackgroundColor )
+        
         ; Draw portion of line left and right to the cursor.
-        BackColor( #White )
-        FrontColor( #Black )
+        BackColor( BackgroundColor )
+        FrontColor( TextColor )
         DrawText( 100, 100, TextBufferLeft )
         DrawText( 100 + TextWidthLeft + TextWidthCursor, 100, TextBufferRight )
         
         ; Draw portion of line at cursor.
         If CursorMode = #CursorModeBlock
-          BackColor( #Black )
-          FrontColor( #White )
+          BackColor( TextColor )
+          FrontColor( BackgroundColor )
         EndIf
         DrawText( 100 + TextWidthLeft, 100, TextBufferCursor )
         If CursorMode = #CursorModeBar
-          Box( 100 + TextWidthLeft, 100, 5, TextHeightLeft, #Black )
+          Box( 100 + TextWidthLeft, 100, 5, TextHeightLeft, TextColor )
         EndIf
         
         StopDrawing()
@@ -304,8 +331,12 @@ Until Event = #PB_Event_CloseWindow
 ;[X] TODO Use fixed-width font
 ;[X] TODO Switch to insert mode and back
 ;[X] TODO Insert characters
-;[ ] TODO Start with empty buffer
+;[X] TODO Start with empty buffer
+;[X] TODO Backspace
 ;[ ] TODO Add second line
+;[ ] TODO Delete line
+;[ ] TODO Save text
+;[ ] TODO Restore text on startup
 ;...
 ;[ ] Undo edit
 ;...
@@ -334,8 +365,8 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 170
-; FirstLine = 153
-; Folding = -
+; CursorPosition = 334
+; FirstLine = 319
+; Folding = --
 ; EnableXP
 ; HideErrorLog
