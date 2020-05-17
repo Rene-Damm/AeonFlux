@@ -1,12 +1,16 @@
 ﻿
 EnableExplicit
 
+#VectorRendering = 0
+
 ExamineDesktops()
 
 ; Create window.
 Define Window.i = OpenWindow( #PB_Any, 0, 0, DesktopWidth( 0 ), DesktopHeight( 0 ), "Aeon Flux", #PB_Window_BorderLess )
 Define Canvas.i = CanvasGadget( #PB_Any, 0, 0, DesktopWidth( 0 ), DesktopHeight( 0 ), #PB_Canvas_Keyboard )
 SetActiveGadget( Canvas )
+
+Define Font = LoadFont( #PB_Any, "Consolas", 16, #PB_Font_HighQuality )
 
 ;let's start with a single line of text and get that working
 ;then go multiline
@@ -121,28 +125,71 @@ Repeat
         ;Line = Line + Chr( Input )
     EndSelect
     
+    ;also, now flickers (should redraw only what's dirty)
+    
     ; Draw.
-    If StartDrawing( CanvasOutput( Canvas ) )
-
-      Define TextWidthLeft = TextWidth( TextBufferLeft )
-      Define TextWidthRight = TextWidth( TextBufferRight )
-      Define TextWidthCursor = TextWidth( TextBufferCursor )
-      Define TextHeightLeft = TextHeight( TextBufferLeft )
+    CompilerIf #VectorRendering = 1
       
-      ; Draw portion of line left and right to the cursor.
-      BackColor( #White )
-      FrontColor( #Black )
-      DrawText( 100, 100, TextBufferLeft )
-      DrawText( 100 + TextWidthLeft + TextWidthCursor, 100, TextBufferRight )
-      
-      ; Draw portion of line at cursor.
-      BackColor( #Black )
-      FrontColor( #White )
-      DrawText( 100 + TextWidthLeft, 100, TextBufferCursor )
-      
-      StopDrawing()
-      
-    EndIf
+      If StartDrawing( CanvasOutput( Canvas ) )
+        ; Clear canvas. Seems like this is the only method to do so...
+        Box( 0, 0, DesktopWidth( 0 ), DesktopHeight( 0 ), #White )
+        StopDrawing()
+      EndIf
+      If StartVectorDrawing( CanvasVectorOutput( Canvas, #PB_Unit_Pixel ) )
+      	
+        VectorFont( FontID( Font ) )
+  
+        Define TextWidthLeft = VectorTextWidth( TextBufferLeft )
+        Define TextWidthRight = VectorTextWidth( TextBufferRight )
+        Define TextWidthCursor = VectorTextWidth( TextBufferCursor )
+        
+        ; Draw portion of line left and right to the cursor.
+        VectorSourceColor( RGBA( 0, 0, 0, 255 ) )
+        ;BackColor( #White )
+        ;FrontColor( #Black )
+        MovePathCursor( 100, 100 )
+        DrawVectorText( TextBufferLeft )
+        MovePathCursor( 100 + TextWidthLeft + TextWidthCursor, 100 )
+        DrawVectorText( TextBufferRight )
+        
+        ; Draw portion of line at cursor.
+        ;BackColor( #Black )
+        ;FrontColor( #White )
+        MovePathCursor( 100 + TextWidthLeft, 100 )
+        DrawVectorText( TextBufferCursor )
+        
+        StopVectorDrawing()
+        
+      EndIf
+    
+    CompilerElse
+    
+      If StartDrawing( CanvasOutput( Canvas ) )
+      	
+        DrawingFont( FontID( Font ) )
+        DrawingMode( #PB_2DDrawing_Default )
+  
+        Define TextWidthLeft = TextWidth( TextBufferLeft )
+        Define TextWidthRight = TextWidth( TextBufferRight )
+        Define TextWidthCursor = TextWidth( TextBufferCursor )
+        Define TextHeightLeft = TextHeight( TextBufferLeft )
+        
+        ; Draw portion of line left and right to the cursor.
+        BackColor( #White )
+        FrontColor( #Black )
+        DrawText( 100, 100, TextBufferLeft )
+        DrawText( 100 + TextWidthLeft + TextWidthCursor, 100, TextBufferRight )
+        
+        ; Draw portion of line at cursor.
+        BackColor( #Black )
+        FrontColor( #White )
+        DrawText( 100 + TextWidthLeft, 100, TextBufferCursor )
+        
+        StopDrawing()
+        
+      EndIf
+    
+    CompilerEndIf
     
   EndIf
   
@@ -150,31 +197,34 @@ Until Event = #PB_Event_CloseWindow
 
 
 ;[X] TODO Render cursor (block)
-;[ ] TODO Move cursor with H and L (vertical movement will have to wait until we have multiple lines)
+;[X] TODO Move cursor with H and L (vertical movement will have to wait until we have multiple lines)
+;[X] TODO Use fixed-width font
 ;[ ] TODO Switch to insert mode
 ;[ ] TODO Insert characters
 
 ;requirements:
 ;- memory buffer and string manipulation
 ;- windowing
-;- text rendering
+;- high-quality text rendering
 ;- Mac and Windows
 ;- fully integrated IDE
 ;- native code executables
 ;- unicode support (preferably UTF8)
 ;- rich library
 ;- unit testing
+;- ideal: vector drawing
 ;- ideal: hotreload
 
-;PB doesn't have substring support but otherwise seems to be the only thing ticks *all* the boxes
+;PB problems:
+;- no aliased font rendering? -> ugly font (SOLVED: switched to vector drawing AND Windows high-DPI support)
+;- no substring support (not a dealbreaker)
 
 ;can mutate text in String
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
-
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 120
-; FirstLine = 96
+; CursorPosition = 200
+; FirstLine = 177
 ; Folding = -
 ; EnableXP
 ; HideErrorLog
