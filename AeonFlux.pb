@@ -16,9 +16,6 @@ SetActiveGadget( Canvas )
 
 Define Font = LoadFont( #PB_Any, "Consolas", 16, #PB_Font_HighQuality )
 
-;let's start with a single line of text and get that working
-;then go multiline
-
 Enumeration EditMode
   #NormalMode
   #InsertMode
@@ -30,7 +27,7 @@ Enumeration CursorMode
   #CursorModeUnderline
 EndEnumeration
 
-Define CursorPositionInLine.i = 4
+Define CursorPositionInLine.i = 0
 Define CursorMode.i = #CursorModeBlock
 Define EditMode.i = #NormalMode
 
@@ -46,34 +43,17 @@ Define *TextBufferRight = @TextBufferRight
 Define TextBufferCursor.s = Space( 1 )
 Define *TextBufferCursor = @TextBufferCursor
 
-Define TextLeft.s = "Try "
-Define TextRight.s = "his"
-
-CopyMemory( @TextLeft, *TextBufferLeft, 5 * 2 ) ; Include NUL.
-CopyMemory( @TextRight, *TextBufferRight, 4 * 2 ) ; Include NUL.
-
-PokeC( *TextBufferCursor, 'T' )
+Define TextLeft.s = ""
+Define TextRight.s = ""
 
 Define TextLengthLeft = Len( TextLeft )
 Define TextLengthRight = Len( TextRight )
 Define TextLength.i = TextLengthLeft + 1 + TextLengthRight
 
-;==============================================================================
+CopyMemory( @TextLeft, *TextBufferLeft, TextLengthLeft * 2 + 2 ) ; Include NUL.
+CopyMemory( @TextRight, *TextBufferRight, TextLengthRight * 2 + 2 ) ; Include NUL.
 
-Procedure SwitchToEditMode( Mode.i )
-  
-  Shared EditMode
-  Shared CursorMode
-  
-  EditMode = Mode
-  Select Mode
-    Case #NormalMode
-      CursorMode = #CursorModeBlock
-    Case #InsertMode
-      CursorMode = #CursorModeBar
-  EndSelect
-  
-EndProcedure
+PokeC( *TextBufferCursor, 0 )
 
 ;==============================================================================
 
@@ -177,6 +157,30 @@ EndProcedure
 
 ;==============================================================================
 
+Procedure SwitchToEditMode( Mode.i )
+  
+  Shared EditMode
+  Shared CursorMode
+  Shared CursorPositionInLine
+  Shared TextLength
+  
+  EditMode = Mode
+  Select Mode
+    Case #NormalMode
+      CursorMode = #CursorModeBlock
+      ;TODO get rid of this behavior
+      ; If we're at end of line, move left one position.
+      If CursorPositionInLine = TextLength - 1 And TextLength > 0
+        MoveCursorLeft()
+      EndIf
+    Case #InsertMode
+      CursorMode = #CursorModeBar
+  EndSelect
+  
+EndProcedure
+
+;==============================================================================
+
 Define EatNextCharacter.i = #False
 
 ; Main loop.
@@ -222,6 +226,7 @@ Repeat
     CompilerIf #VectorRendering = 1
       
       ;flickers (should redraw only what's dirty)
+      ;vector drawing seems to be A LOT slower so nut sure I'll go further with this path
       
       If StartDrawing( CanvasOutput( Canvas ) )
         ; Clear canvas. Seems like this is the only method to do so...
@@ -299,9 +304,12 @@ Until Event = #PB_Event_CloseWindow
 ;[X] TODO Use fixed-width font
 ;[X] TODO Switch to insert mode and back
 ;[X] TODO Insert characters
-;[ ] TODO 
+;[ ] TODO Start with empty buffer
+;[ ] TODO Add second line
 ;...
-;[ ] Redraw only changed portion of the text (dirty rectangles)
+;[ ] Undo edit
+;...
+;[ ] Redraw only changed portion of the text (dirty rectangles/lines)
 ;...
 ;[ ] TODO Switch to command mode
 
@@ -326,8 +334,8 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 108
-; FirstLine = 79
+; CursorPosition = 170
+; FirstLine = 153
 ; Folding = -
 ; EnableXP
 ; HideErrorLog
