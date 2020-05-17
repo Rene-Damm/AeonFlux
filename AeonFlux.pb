@@ -15,6 +15,11 @@ Define Font = LoadFont( #PB_Any, "Consolas", 16, #PB_Font_HighQuality )
 ;let's start with a single line of text and get that working
 ;then go multiline
 
+Enumeration EditMode
+  #NormalMode
+  #InsertMode
+EndEnumeration
+
 Enumeration CursorMode
   #CursorModeBlock
   #CursorModeBar
@@ -24,6 +29,7 @@ EndEnumeration
 Define Line.s = "Try This"
 Define CursorPositionInLine.i = 4
 Define CursorMode.i = #CursorModeBlock
+Define EditMode.i = #NormalMode
 
 ;store text in memory as UTF-8 and use the same single set of temp strings (UTF-16) for rendering?
 
@@ -44,6 +50,24 @@ CopyMemory( @TextLeft, *TextBufferLeft, 5 * 2 ) ; Include NUL.
 CopyMemory( @TextRight, *TextBufferRight, 4 * 2 ) ; Include NUL.
 
 PokeC( *TextBufferCursor, 'T' )
+
+;==============================================================================
+
+Procedure SwitchToEditMode( Mode.i )
+  Shared EditMode
+  Shared CursorMode
+  
+  EditMode = Mode
+  Select Mode
+    Case #NormalMode
+      CursorMode = #CursorModeBlock
+    Case #InsertMode
+      CursorMode = #CursorModeBar
+  EndSelect
+  
+EndProcedure
+
+;==============================================================================
 
 Procedure MoveCursorLeft()
   
@@ -75,6 +99,8 @@ Procedure MoveCursorLeft()
   
 EndProcedure
 
+;==============================================================================
+
 Procedure MoveCursorRight()
   
   Shared Line
@@ -101,6 +127,8 @@ Procedure MoveCursorRight()
   
 EndProcedure
 
+;==============================================================================
+
 ; Main loop.
 Repeat
   
@@ -112,23 +140,33 @@ Repeat
     Select EventType()
       Case #PB_EventType_KeyDown
         Define Key = GetGadgetAttribute( Canvas, #PB_Canvas_Key )
-        Select Key
-          Case #PB_Shortcut_Escape
-            End
-          Case #PB_Shortcut_H
-            MoveCursorLeft()
-          Case #PB_Shortcut_L
-            MoveCursorRight()
+        Select EditMode
+          Case #NormalMode
+            Select Key
+              Case #PB_Shortcut_Escape
+                End
+              Case #PB_Shortcut_H
+                MoveCursorLeft()
+              Case #PB_Shortcut_L
+                MoveCursorRight()
+              Case #PB_Shortcut_I
+                SwitchToEditMode( #InsertMode )
+            EndSelect
+          Case #InsertMode
+            Select Key
+              Case #PB_Shortcut_Escape
+                SwitchToEditMode( #NormalMode )
+            EndSelect
         EndSelect
       Case #PB_EventType_Input
         Define Input = GetGadgetAttribute( Canvas, #PB_Canvas_Input )
         ;Line = Line + Chr( Input )
     EndSelect
     
-    ;also, now flickers (should redraw only what's dirty)
-    
     ; Draw.
     CompilerIf #VectorRendering = 1
+      
+      ;flickers (should redraw only what's dirty)
       
       If StartDrawing( CanvasOutput( Canvas ) )
         ; Clear canvas. Seems like this is the only method to do so...
@@ -181,9 +219,14 @@ Repeat
         DrawText( 100 + TextWidthLeft + TextWidthCursor, 100, TextBufferRight )
         
         ; Draw portion of line at cursor.
-        BackColor( #Black )
-        FrontColor( #White )
+        If CursorMode = #CursorModeBlock
+          BackColor( #Black )
+          FrontColor( #White )
+        EndIf
         DrawText( 100 + TextWidthLeft, 100, TextBufferCursor )
+        If CursorMode = #CursorModeBar
+          Box( 100 + TextWidthLeft, 100, 5, TextHeightLeft, #Black )
+        EndIf
         
         StopDrawing()
         
@@ -199,8 +242,12 @@ Until Event = #PB_Event_CloseWindow
 ;[X] TODO Render cursor (block)
 ;[X] TODO Move cursor with H and L (vertical movement will have to wait until we have multiple lines)
 ;[X] TODO Use fixed-width font
-;[ ] TODO Switch to insert mode
+;[ ] TODO Switch to insert mode and back
 ;[ ] TODO Insert characters
+;...
+;[ ] Redraw only changed portion of the text (dirty rectangles)
+;...
+;[ ] TODO Switch to command mode
 
 ;requirements:
 ;- memory buffer and string manipulation
@@ -223,8 +270,8 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 200
-; FirstLine = 177
+; CursorPosition = 227
+; FirstLine = 204
 ; Folding = -
 ; EnableXP
 ; HideErrorLog
