@@ -1,5 +1,8 @@
 ﻿DeclareModule Utils
   
+  #MIN_QUAD = -9223372036854775808
+  #MAX_QUAD = 9223372036854775807
+  
   Macro QUOTE
     "
   EndMacro
@@ -49,6 +52,6 @@ Module Utils
   
 EndModule
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 17
+; CursorPosition = 2
 ; Folding = --
 ; EnableXP

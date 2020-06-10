@@ -1,4 +1,6 @@
-﻿DeclareModule GapBuffer
+﻿XIncludeFile "Utils.pb"
+
+DeclareModule GapBuffer
   
   ;............................................................................
   
@@ -16,6 +18,7 @@
   
   ;............................................................................
   
+  Declare   InitializeGapBuffer         ( *Buffer.GapBuffer, StrideInBytes.b )
   Declare   AllocateGapBuffer           ( *Buffer.GapBuffer, SizeInBytes.q, StrideInBytes.b )
   Declare   FreeGapBuffer               ( *Buffer.GapBuffer )
   Declare.q GetGapBufferPosition        ( *Buffer.GapBuffer )
@@ -78,11 +81,21 @@ Module GapBuffer
   
   ;............................................................................
   
+  Procedure InitializeGapBuffer( *Buffer.GapBuffer, StrideInBytes.b )
+    
+    DebugAssert( StrideInBytes > 0 )
+    
+    InitializeStructure( *Buffer, GapBuffer )
+    *Buffer\StrideInBytes = StrideInBytes
+    
+  EndProcedure
+    
+  ;............................................................................
+  
   Procedure AllocateGapBuffer( *Buffer.GapBuffer, SizeInBytes.q, StrideInBytes.b )
     
     DebugAssert( SizeInBytes % StrideInBytes = 0 )
-    
-    ;REVIEW Defer allocation until we put something in the buffer?
+    DebugAssert( StrideInBytes > 0 )
     
     *Buffer\StrideInBytes = StrideInBytes
     *Buffer\LeftBuffer = AllocateMemory( SizeInBytes, #PB_Memory_NoClear )
@@ -358,7 +371,6 @@ ProcedureUnit CanReadFromGapBuffer()
   
   ReadFromGapBuffer( @Buffer, @String, 1, 6 )
   
-  UnitDebug( String )
   Assert( String = "irstSe" )
   
   MoveGapInGapBufferAbsolute( @Buffer, 0 )
@@ -374,6 +386,5 @@ ProcedureUnit CanReadFromGapBuffer()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 374
 ; Folding = ---
 ; EnableXP
