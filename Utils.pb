@@ -17,9 +17,13 @@
     CompilerEndIf
   EndMacro
   
+  Prototype.i CompareFn       ( *Left, *Right )
+  
   Declare.q Min               ( A.q, B.q )
   Declare.q Max               ( A.q, B.q )
   Declare.q AlignToMultipleOf ( Number.q, Alignment.q )
+  Declare.i CompareFnQ        ( *Left, *Right )
+  Declare   NotImplemented    ( Message.s )
   
 EndDeclareModule
 
@@ -50,8 +54,37 @@ Module Utils
     ProcedureReturn Number + ( Alignment - Number % Alignment )
   EndProcedure
   
+  
+  ;............................................................................
+  
+  Procedure.i CompareFnQ( *Left, *Right )
+    
+    Define LeftValue.q = PeekQ( *Left )
+    Define RightValue.q = PeekQ( *Right )
+    
+    If LeftValue < RightValue
+      ProcedureReturn -1
+    ElseIf LeftValue > RightValue
+      ProcedureReturn 1
+    Else
+      ProcedureReturn 0
+    EndIf
+    
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure NotImplemented( Message.s )
+    
+    ShowDebugOutput()
+    DebuggerError( "Not implemented: " + Message )
+    End -1
+    
+  EndProcedure
+  
 EndModule
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 2
+; CursorPosition = 80
+; FirstLine = 29
 ; Folding = --
 ; EnableXP

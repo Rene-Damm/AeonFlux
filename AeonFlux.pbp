@@ -7,7 +7,7 @@
   <section name="data">
     <explorer view="C:\Program Files\PureBasic\Examples\" pattern="0"/>
     <log show="0"/>
-    <lastopen date="2020-06-09 23:51" user="rened" host="DESKTOP-7ELOB29"/>
+    <lastopen date="2020-06-14 01:38" user="Rene Damm" host="VORKRAFT"/>
   </section>
   <section name="files">
     <file name="AeonFlux.pb">
@@ -16,19 +16,19 @@
     </file>
     <file name="GapBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="6bc50dc0c47fc48efdc59e516a4e5333"/>
+      <fingerprint md5="525781e0a927212600899b5a0225e2b5"/>
     </file>
     <file name="TextBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="4d637e214dea5ab1584f6b254dca3bac"/>
+      <fingerprint md5="136aeae93b79d4307270ab5ec99b9379"/>
     </file>
     <file name="TextMarker.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="7045b609e132993ed5791dc374643d71"/>
+      <fingerprint md5="1ecc87621109bf92c0b4bd5b8b1b652c"/>
     </file>
     <file name="Utils.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="f9d2430910d7904525d8418120a5e87f"/>
+      <fingerprint md5="3604551744e0ff87557cd9133c894712"/>
     </file>
   </section>
   <section name="targets">

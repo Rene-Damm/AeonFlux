@@ -1,4 +1,11 @@
-﻿DeclareModule TextBuffer
+﻿EnableExplicit
+
+XIncludeFile "GapBuffer.pb"
+XIncludeFile "TextMarker.pb"
+
+;;REVIEW: For very large files, consider having a tree of gap buffers
+
+DeclareModule TextBuffer
   
   UseModule GapBuffer
   UseModule TextMarker
@@ -214,7 +221,6 @@ ProcedureUnit CanWriteIntoTextBuffer()
 EndProcedureUnit  
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 201
-; FirstLine = 174
-; Folding = ---
+; CursorPosition = 5
+; Folding = --
 ; EnableXP

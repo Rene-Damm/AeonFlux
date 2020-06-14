@@ -1,6 +1,10 @@
-﻿XIncludeFile "Utils.pb"
+﻿EnableExplicit
+
+XIncludeFile "Utils.pb"
 
 DeclareModule GapBuffer
+  
+  UseModule Utils
   
   ;............................................................................
   
@@ -18,15 +22,21 @@ DeclareModule GapBuffer
   
   ;............................................................................
   
-  Declare   InitializeGapBuffer         ( *Buffer.GapBuffer, StrideInBytes.b )
-  Declare   AllocateGapBuffer           ( *Buffer.GapBuffer, SizeInBytes.q, StrideInBytes.b )
-  Declare   FreeGapBuffer               ( *Buffer.GapBuffer )
-  Declare.q GetGapBufferPosition        ( *Buffer.GapBuffer )
-  Declare.q GetGapBufferLength          ( *Buffer.GapBuffer )
-  Declare   WriteIntoGapBuffer          ( *Buffer.GapBuffer, *Ptr, Count.q )
-  Declare.q ReadFromGapBuffer           ( *Buffer.GapBuffer, *Ptr, Position.q, Count.q )
-  Declare   MoveGapInGapBufferRelative  ( *Buffer.GapBuffer, Offset.q )
-  Declare   MoveGapInGapBufferAbsolute  ( *Buffer.GapBuffer, Position.q )
+  Declare   InitializeGapBuffer           ( *Buffer.GapBuffer, StrideInBytes.b )
+  Declare   AllocateGapBuffer             ( *Buffer.GapBuffer, SizeInBytes.q, StrideInBytes.b )
+  Declare   FreeGapBuffer                 ( *Buffer.GapBuffer )
+  Declare.i IsGapBufferEmpty              ( *Buffer.GapBuffer )
+  Declare.q GetGapBufferPosition          ( *Buffer.GapBuffer )
+  Declare.q GetGapBufferLength            ( *Buffer.GapBuffer )
+  Declare.q GetGapBufferLengthLeft        ( *Buffer.GapBuffer )
+  Declare.q GetGapBufferLengthRight       ( *Buffer.GapBuffer )
+  Declare.q GapBufferElementAt            ( *Buffer.GapBuffer, Position.q )
+  Declare   WriteIntoGapBuffer            ( *Buffer.GapBuffer, *Ptr, Count.q )
+  Declare.q ReadFromGapBuffer             ( *Buffer.GapBuffer, *Ptr, Position.q, Count.q )
+  Declare   MoveGapInGapBufferRelative    ( *Buffer.GapBuffer, Offset.q )
+  Declare   MoveGapInGapBufferAbsolute    ( *Buffer.GapBuffer, Position.q )
+  Declare.q FindInGapBuffer               ( *Buffer.GapBuffer, *Ptr, Count.q, Position.q = 0 )
+  Declare.q FindElementInOrderedGapBuffer ( *Buffer.GapBuffer, *Element, *Compare.CompareFn, Position.q = 0, Count.q = -1 )
   
 EndDeclareModule
 
@@ -125,6 +135,18 @@ Module GapBuffer
   
   ;............................................................................
   
+  Procedure.i IsGapBufferEmpty( *Buffer.GapBuffer )
+    
+    If *Buffer\LeftBuffer = *Buffer\LeftBufferEnd And
+       *Buffer\RightBufferStart = ( *Buffer\RightBuffer + *Buffer\RightBufferSizeInBytes )
+      ProcedureReturn #True
+    EndIf
+    ProcedureReturn #False
+    
+  EndProcedure
+  
+  ;............................................................................
+  
   Procedure.q GetGapBufferPosition( *Buffer.GapBuffer )
     
     ProcedureReturn ( *Buffer\LeftBufferEnd - *Buffer\LeftBuffer ) / *Buffer\StrideInBytes
@@ -141,7 +163,36 @@ Module GapBuffer
     ProcedureReturn ( LeftBufferSize + RightBufferSize ) / *Buffer\StrideInBytes
     
   EndProcedure
-
+  
+  ;............................................................................
+  
+  Procedure.q GetGapBufferLengthLeft( *Buffer.GapBuffer )
+    ProcedureReturn ( *Buffer\LeftBufferEnd - *Buffer\LeftBuffer ) / *Buffer\StrideInBytes
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure.q GetGapBufferLengthRight( *Buffer.GapBuffer )
+    ProcedureReturn ( *Buffer\RightBuffer + *Buffer\RightBufferSizeInBytes - *Buffer\RightBufferStart ) / *Buffer\StrideInBytes
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure.q GapBufferElementAt( *Buffer.GapBuffer, Position.q )
+    
+    DebugAssert( Position >= 0 )
+    DebugAssert( Position < GetGapBufferLength( *Buffer ) )
+    
+    Define.q NumLeft = GetGapBufferLengthLeft( *Buffer )
+    If Position < NumLeft
+      ProcedureReturn *Buffer\LeftBuffer + ( Position * *Buffer\StrideInBytes )
+    Else
+      Position - NumLeft
+      ProcedureReturn *Buffer\RightBufferStart + ( Position * *Buffer\StrideInBytes )
+    EndIf
+    
+  EndProcedure
+  
   ;............................................................................
   
   Procedure WriteIntoGapBuffer( *Buffer.GapBuffer, *Ptr, Count.q )
@@ -246,8 +297,74 @@ Module GapBuffer
     EndIf
     
   EndProcedure
+    
+  ;............................................................................
+  
+  Procedure.q FindInGapBuffer( *Buffer.GapBuffer, *Ptr, Count.q, Position.q = 0 )
+    
+    ;;TODO
+    NotImplemented( "FindInGapBuffer" )
+    
+  EndProcedure
+    
+  ;............................................................................
+  
+  Procedure.q FindElementInOrderedGapBuffer( *Buffer.GapBuffer, *Element, *Compare.CompareFn, Position.q = 0, Count.q = -1 )
+    
+    DebugAssert( Position >= 0 )
+    DebugAssert( Position < GetGapBufferLength( *Buffer ) )
+    DebugAssert( Count < 0 Or Count <= ( GetGapBufferLength( *Buffer ) - Position ) )
+    
+    Define *LeftBuffer = *Buffer\LeftBuffer
+    Define *RightBuffer = *Buffer\RightBufferStart
+    
+    Define.q NumLeft = GetGapBufferLengthLeft( *Buffer )
+    Define.q NumRight = GetGapBufferLengthRight( *Buffer )
+    Define.q StrideInBytes = *Buffer\StrideInBytes
+    
+    ;;REVIEW: Is binary search really a good strategy? Seems like it quickly creates worst case cache access patterns...
+    ; Binary search through buffer.
+    
+    Define.q LeftIndex = Position
+    Define.q RightIndex
+    Define.q GapIndex = NumLeft
+    
+    If Count >= 0
+      RightIndex = Position + Count - 1
+    Else
+      RightIndex = NumLeft + NumRight - 1
+    EndIf
+    
+    While LeftIndex <= RightIndex
+      
+      Define.q MidIndex = ( LeftIndex + RightIndex ) / 2
+      
+      Define *ElementPtr
+      If MidIndex < GapIndex
+        *ElementPtr = *LeftBuffer + MidIndex * StrideInBytes
+      Else
+        *ElementPtr = *RightBuffer + ( MidIndex - GapIndex ) * StrideInBytes
+      EndIf
+      
+      Define.i Comparison = *Compare( *ElementPtr, *Element )
+      
+      If Comparison < 0
+        LeftIndex = MidIndex + 1
+      ElseIf Comparison > 0
+        RightIndex = MidIndex - 1
+      Else
+        ProcedureReturn MidIndex
+      EndIf
+      
+    Wend
+    
+    ProcedureReturn -1
+    
+  EndProcedure
   
 EndModule
+
+;..............................................................................
 
 ProcedureUnit CanCreateGapBuffer()
 
@@ -276,7 +393,9 @@ ProcedureUnit CanCreateGapBuffer()
   Assert( Buffer\RightBufferSizeInBytes = 0 )
 
 EndProcedureUnit
-  
+
+;..............................................................................
+
 ProcedureUnit CanInsertDataIntoGapBuffer()
 
   UseModule GapBuffer
@@ -285,14 +404,18 @@ ProcedureUnit CanInsertDataIntoGapBuffer()
   AllocateGapBuffer( @Buffer, 256, SizeOf( Character ) )
   
   Assert( GetGapBufferLength( @Buffer ) = 0 )
+  Assert( IsGapBufferEmpty( @Buffer ) = #True )
   
   WriteIntoGapBuffer( @Buffer, @"Test", 5 ) ; Include NUL.
   
   Assert( GetGapBufferLength( @Buffer ) = 5 )
   Assert( PeekS( Buffer\LeftBuffer ) = "Test" )
+  Assert( IsGapBufferEmpty( @Buffer ) = #False )
 
 EndProcedureUnit
-  
+
+;..............................................................................
+
 ProcedureUnit CanMoveGapInGapBuffer()
 
   UseModule GapBuffer
@@ -339,7 +462,9 @@ ProcedureUnit CanMoveGapInGapBuffer()
   Assert( PeekS( Buffer\RightBufferStart, 8 ) = "rmestest" )
 
 EndProcedureUnit
-  
+
+;..............................................................................
+
 ProcedureUnit CanReadFromGapBuffer()
 
   UseModule GapBuffer
@@ -385,6 +510,134 @@ ProcedureUnit CanReadFromGapBuffer()
 
 EndProcedureUnit
 
+;..............................................................................
+
+CompilerIf #False ;;TODO
+ProcedureUnit CanSearchInGapBuffer()
+
+  UseModule GapBuffer
+  
+  Define Buffer.GapBuffer
+  AllocateGapBuffer( @Buffer, 256, SizeOf( Character ) )
+  
+  WriteIntoGapBuffer( @Buffer, @"First", 5 )
+  WriteIntoGapBuffer( @Buffer, @"Second", 6 )
+  WriteIntoGapBuffer( @Buffer, @"Third", 5 )
+  
+  Assert( FindInGapBuffer( @Buffer, @"Fi", 2 ) = 0 )
+  Assert( FindInGapBuffer( @Buffer, @"rst", 3 ) = 2 )
+  Assert( FindInGapBuffer( @Buffer, @"cond", 4 ) = 7 )
+  Assert( FindInGapBuffer( @Buffer, @"ird", 3 ) = 14 )
+  Assert( FindInGapBuffer( @Buffer, @"none", 4 ) = -1 )
+  Assert( FindInGapBuffer( @Buffer, @"i", 1, 5 ) = 13 )
+  
+  MoveGapInGapBufferAbsolute( @Buffer, 3 )
+  
+  Assert( FindInGapBuffer( @Buffer, @"Fi", 2 ) = 0 )
+  Assert( FindInGapBuffer( @Buffer, @"rst", 3 ) = 2 )
+  Assert( FindInGapBuffer( @Buffer, @"cond", 4 ) = 7 )
+  Assert( FindInGapBuffer( @Buffer, @"ird", 3 ) = 14 )
+  Assert( FindInGapBuffer( @Buffer, @"none", 4 ) = -1 )
+  Assert( FindInGapBuffer( @Buffer, @"i", 1, 5 ) = 13 )
+  
+EndProcedureUnit
+CompilerEndIf
+
+;..............................................................................
+
+ProcedureUnit CanGetPointerToElementInGapBuffer()
+
+  UseModule GapBuffer
+
+  Define Buffer.GapBuffer
+  AllocateGapBuffer( @Buffer, 256, SizeOf( Quad ) )
+  
+  Define.q Value
+  For Value = 0 To 10
+    WriteIntoGapBuffer( @Buffer, @Value, 1 )
+  Next
+  
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 0 ) ) = 0 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 1 ) ) = 1 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 5 ) ) = 5 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 9 ) ) = 9 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 10 ) ) = 10 )
+  
+  MoveGapInGapBufferAbsolute( @Buffer, 5 )
+  
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 0 ) ) = 0 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 1 ) ) = 1 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 4 ) ) = 4 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 5 ) ) = 5 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 9 ) ) = 9 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 10 ) ) = 10 )
+  
+  MoveGapInGapBufferAbsolute( @Buffer, 10 )
+  
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 0 ) ) = 0 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 1 ) ) = 1 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 4 ) ) = 4 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 5 ) ) = 5 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 9 ) ) = 9 )
+  Assert( PeekQ( GapBufferElementAt( @Buffer, 10 ) ) = 10 )
+  
+EndProcedureUnit
+
+;..............................................................................
+
+ProcedureUnit CanFindElementInOrderedGapBuffer()
+
+  UseModule GapBuffer
+  UseModule Utils
+  
+  Define Buffer.GapBuffer
+  AllocateGapBuffer( @Buffer, 256, SizeOf( Quad ) )
+  
+  Define.q Value = 3
+  
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = -1 )
+  
+  For Value = 0 To 10
+    WriteIntoGapBuffer( @Buffer, @Value, 1 )
+  Next
+  
+  Value = 3
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = 3 )
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ(), 1, 5 ) = 3 )
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ(), 4, 5 ) = -1 )
+  Value = 0
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = 0 )
+  Value = 10
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = 10 )  
+  Value = 100
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = -1 )
+  Value = -1
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = -1 )
+  
+  MoveGapInGapBufferAbsolute( @Buffer, 4 )
+  
+  Value = 3
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = 3 )
+  Value = 4
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = 4 )
+  Value = 0
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = 0 )
+  Value = 10
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = 10 )  
+  Value = 100
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = -1 )
+  Value = -1
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = -1 )
+  
+  MoveGapInGapBufferAbsolute( @Buffer, 0 )
+  
+  Value = 3
+  Assert( FindElementInOrderedGapBuffer( @Buffer, @Value, @CompareFnQ() ) = 3 )
+  
+EndProcedureUnit
+
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; Folding = ---
+; CursorPosition = 305
+; FirstLine = 285
+; Folding = ----
 ; EnableXP
