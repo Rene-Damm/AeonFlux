@@ -6,17 +6,21 @@
 EnableExplicit
 
 ;Current Goal: multiple lines of text
-;  (need to know where the lines are in the text)
+;  (need to know where the lines are in the text) DONE
 ;  (need to be able to render individual lines)
 ;  (need to be able to navigate up and down)
 
 XIncludeFile "Utils.pb"
-XIncludeFile "GapBuffer.pb"
-XIncludeFile "TextMarker.pb"
-XIncludeFile "TextBuffer.pb"
+XIncludeFile "GapBuffer.pb"     ; Memory.
+XIncludeFile "TextMarker.pb"    ; Positions.
+XIncludeFile "TextBuffer.pb"    ; Text.
+XIncludeFile "TextEditor.pb"    ; Cursors, selections, undo.
 
 ;TextRenderer (dirty rects and render buffers)
-;TextEditor (edit command engine)
+;Editor (modes, command maps, macros, )    *all* edit operations must be representable as text strings
+;Workspace (blobs)
+
+;central event/message bus?
 
 #VectorRendering = #False
 
@@ -73,8 +77,6 @@ PokeC( *TextBufferRight, 0 )
 
 ;==============================================================================
 
-;move existing TextBuffer stuff here
-;fill buffer from GapBuffer
 ;do text rendering on thread? (and output as images)
 ;will eventually have to handle styling, annotations, etc
 
@@ -88,42 +90,21 @@ EndDeclareModule
 Module TextRenderBuffer
 EndModule
 
-;==============================================================================
-
-CompilerIf #False
-;newline positions and any other marker that needs to "stick" to text and remain in the same place
-;also do dirty rectangles as markers?
-
-DeclareModule TextMarker
-  ;gap marker positions are 64bit; negative is for left buffer, positive for right buffer
+DeclareModule DataModel
   
+  ;root
+  ;project
+  ;workspace
   
-  
-  ;allocate from pool
-  ;marker always stays in same spot in pool (version numbers?)
-  ;array of markers sorted by position
-  ;one array for left buffer
-  ;one array for right buffer (i.e. also a gap buffer)
-  ;can have arbitrary many of those (for different kinds of markers)
+  ;or all in separate modules?
   
 EndDeclareModule
 
-Module TextMarker
-  
+Module DataModel
 EndModule
-CompilerEndIf
 
 ;==============================================================================
 
-;eats commands and mutates a buffer based on them
-;?what about commands that go across buffers? does it have multiple buffers?
-DeclareModule TextEditor
-  ;buffer
-  ;
-EndDeclareModule
-
-Module TextEditor
-EndModule
 
 ;TextCursor module? (block-select cursors and the like) or TextSelection?
 
@@ -452,7 +433,7 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 15
-; Folding = ---
+; CursorPosition = 19
+; Folding = --
 ; EnableXP
 ; HideErrorLog

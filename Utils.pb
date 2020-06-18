@@ -2,6 +2,7 @@
   
   #MIN_QUAD = -9223372036854775808
   #MAX_QUAD = 9223372036854775807
+  #NEWLINE = 10
   
   Macro QUOTE
     "
@@ -16,6 +17,11 @@
       EndIf
     CompilerEndIf
   EndMacro
+  
+  Interface IFileSystem
+    OpenFile.q( Path.s, Flags.i )
+    Createfile.q( Path.s, Flags.i )
+  EndInterface
   
   Prototype.i CompareFn       ( *Left, *Right )
   
@@ -84,7 +90,6 @@ Module Utils
   
 EndModule
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 80
-; FirstLine = 29
+; CursorPosition = 4
 ; Folding = --
 ; EnableXP

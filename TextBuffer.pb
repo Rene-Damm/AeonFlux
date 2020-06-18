@@ -3,7 +3,10 @@
 XIncludeFile "GapBuffer.pb"
 XIncludeFile "TextMarker.pb"
 
+;;REVIEW: Have reference counts on buffers?
 ;;REVIEW: For very large files, consider having a tree of gap buffers
+
+;;TODO: styling information
 
 DeclareModule TextBuffer
   
@@ -32,6 +35,7 @@ DeclareModule TextBuffer
   Declare.q GetTextBufferLength( *Buffer.TextBuffer )
   Declare.q GetTextBufferLineCount( *Buffer.TextBuffer )
   Declare   WriteUTF8IntoTextBuffer( *Buffer.TextBuffer, Position.q, *Text, Count.q )
+  Declare   WriteCharacterIntoTextBuffer( *Buffer.TextBuffer, Position.q, Character.c )
   Declare   WriteStringIntoTextBuffer( *Buffer.TextBuffer, Position.q, Text.s, Length.i = -1 )
   Declare.s ReadStringFromTextBuffer( *Buffer.TextBuffer, Position.q = 0, Count.q = -1 )
   CompilerIf #False
@@ -101,7 +105,7 @@ Module TextBuffer
   
   Procedure WriteUTF8IntoTextBuffer( *Buffer.TextBuffer, Position.q, *Text, Count.q )
     
-    DebugAssert( *Text <> 0 )
+    DebugAssert( *Text <> #Null )
     DebugAssert( Count >= 0 )
     
     ; Reposition gap, if necessary.
@@ -116,7 +120,7 @@ Module TextBuffer
     ; Add line markers, if necessary.
     For I = 0 To Count - 1
       Define.b Char = PeekB( *Text + I )
-      If Char = 10 ; '\n'
+      If Char = #NEWLINE
         AddMarkerToTextMarkerList( *Buffer\LinePositions, Position + I )
       EndIf
     Next
@@ -125,7 +129,32 @@ Module TextBuffer
   
   ;............................................................................
   
+  Procedure WriteCharacterIntoTextBuffer( *Buffer.TextBuffer, Position.q, Character.c )
+    
+    DebugAssert( *Buffer <> #Null )
+    
+    CompilerIf #PB_Unicode
+      
+      If Character < 256
+        ; Assumes little endian.
+        WriteUTF8IntoTextBuffer( *Buffer, Position, @Character, 1 )
+      Else
+        NotImplemented( "Convert UTF-16 character to UTF-18" )
+      EndIf
+      
+    CompilerElse
+      
+      WriteUTF8IntoTextBuffer( *Buffer, Position, @Character, 1 )
+      
+    CompilerEndIf
+    
+  EndProcedure
+  
+  ;............................................................................
+  
   Procedure WriteStringIntoTextBuffer( *Buffer.TextBuffer, Position.q, Text.s, Length.i = -1 )
+    
+    DebugAssert( *Buffer <> #Null )
     
     CompilerIf #PB_Unicode
       
@@ -137,7 +166,7 @@ Module TextBuffer
       ;;          (Can we convert single characters and write them one by one?)
       
       ; Convert into UTF-8 into a temporary buffer.
-      Define.b *TempBuffer = AllocateMemory( Length * 2 + 1 )
+      Define.b *TempBuffer = AllocateMemory( Length * 3 + 1 )
       PokeS( *TempBuffer, Text, Length, #PB_UTF8 )
       Define.q Count = MemoryStringLength( *TempBuffer, #PB_UTF8 | #PB_ByteLength )
       WriteUTF8IntoTextBuffer( *Buffer, Position, *TempBuffer, Count )
@@ -163,6 +192,10 @@ Module TextBuffer
       Count = GetGapBufferLength( *Buffer\Text )
     EndIf
     
+    If Count = 0
+      ProcedureReturn ""
+    EndIf
+    
     CompilerIf #PB_Unicode
       
       ;;OPTIMIZE: This can be done much faster
@@ -184,6 +217,8 @@ Module TextBuffer
   
 EndModule
 
+;..............................................................................
+
 ProcedureUnit CanWriteIntoTextBuffer()
 
   UseModule TextBuffer
@@ -195,6 +230,7 @@ ProcedureUnit CanWriteIntoTextBuffer()
   
   Assert( GetTextBufferLength( @Buffer ) = 0 )
   Assert( GetTextBufferLineCount( @Buffer ) = 1 )
+  Assert( ReadStringFromTextBuffer( @Buffer ) = "" )
   
   WriteStringIntoTextBuffer( @Buffer, 0, "First" )
   
@@ -214,13 +250,20 @@ ProcedureUnit CanWriteIntoTextBuffer()
   Assert( GetTextBufferLineCount( @Buffer ) = 3 )
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"First\nSecond\n" )
   
+  WriteCharacterIntoTextBuffer( @Buffer, 1, '\' )
+  
+  Assert( GetTextBufferLength( @Buffer ) = 14 )
+  Assert( GetTextBufferLineCount( @Buffer ) = 3 )
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"F\\irst\nSecond\n" )
+  
   DestroyTextBuffer( @Buffer )
   
   FreeMemory( *UTF8First )
   
-EndProcedureUnit  
+EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 5
+; CursorPosition = 122
+; FirstLine = 98
 ; Folding = --
 ; EnableXP

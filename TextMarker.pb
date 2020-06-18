@@ -14,6 +14,9 @@ XIncludeFile "Utils.pb"
 
 ; Markers can either be accessed by position or with a stable accessor.
 
+;;REVIEW: Also do dirty rects using markers?
+;;REVIEW: Have ability for markers to be linked? (e.g. for folding-type information)
+
 DeclareModule TextMarker
   
   UseModule GapBuffer
@@ -32,6 +35,7 @@ DeclareModule TextMarker
   EndStructure
   
   ; An ordered list of markers.
+  ; Can have arbitrary many separate sets of markers.
   Structure TextMarkerList
     Buffer.GapBuffer
     EndPosition.q
@@ -356,6 +360,8 @@ Module TextMarker
 
 EndModule
 
+;..............................................................................
+
 ProcedureUnit CanAddMarkersToList()
 
   UseModule GapBuffer
@@ -416,7 +422,6 @@ ProcedureUnit CanAddMarkersToList()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 401
-; FirstLine = 358
+; CursorPosition = 17
 ; Folding = ---
 ; EnableXP
