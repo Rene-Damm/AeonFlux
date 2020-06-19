@@ -8,14 +8,12 @@ XIncludeFile "TextMarker.pb"
 
 ;;TODO: styling information
 
+; Adds line tracking, markers, and styling to raw UTF-8 text kept in a gap buffer.
 DeclareModule TextBuffer
   
   UseModule GapBuffer
   UseModule TextMarker
-  
-  ;where does the text cursor live?
-  ;do I disassociate it with the gap buffer position and allow it to move freely in normal mode?
-  
+ 
   ;............................................................................
   
   Structure TextBuffer
@@ -263,7 +261,6 @@ ProcedureUnit CanWriteIntoTextBuffer()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 122
-; FirstLine = 98
+; CursorPosition = 10
 ; Folding = --
 ; EnableXP

@@ -11,13 +11,16 @@ EnableExplicit
 ;  (need to be able to navigate up and down)
 
 XIncludeFile "Utils.pb"
-XIncludeFile "GapBuffer.pb"     ; Memory.
-XIncludeFile "TextMarker.pb"    ; Positions.
-XIncludeFile "TextBuffer.pb"    ; Text.
-XIncludeFile "TextEditor.pb"    ; Cursors, selections, undo.
+XIncludeFile "GapBuffer.pb"         ; Memory.
+XIncludeFile "TextMarker.pb"        ; Positions.
+XIncludeFile "TextBuffer.pb"        ; Text.
+XIncludeFile "TextEditor.pb"        ; Cursors, selections, undo.
+XIncludeFile "Shell.pb"             ; Modes, commands.
+XIncludeFile "TextEditorShell.pb"   ; Text editing commands.
 
 ;TextRenderer (dirty rects and render buffers)
-;Editor (modes, command maps, macros, )    *all* edit operations must be representable as text strings
+;Editor (Shell?) (modes, command maps, macros, )    *all* edit operations must be representable as text strings
+;Configuration
 ;Workspace (blobs)
 
 ;central event/message bus?
@@ -433,7 +436,7 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 19
+; CursorPosition = 17
 ; Folding = --
 ; EnableXP
 ; HideErrorLog

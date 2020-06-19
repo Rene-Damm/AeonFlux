@@ -3,6 +3,11 @@ EnableExplicit
 XIncludeFile "Utils.pb"
 XIncludeFile "TextBuffer.pb"
 
+;should this be renamed so that "TextEditor" can be an IEditor and implement commands? (or put that in TextEditorShell?)
+;should the stuff here be merged into "TextBuffer"?
+
+;allow restricting an editor to a limited view of a buffer?
+
 ;how does editing text relate to editing other pieces of information presented in the UI? shouldn't it be all one command/edit model?
 ;how is, for example, the running program represented and how is it interacted with? (both in terms of sending input to the running program as well as in terms of invoking commands for controlling it)
 
@@ -17,7 +22,7 @@ DeclareModule TextEditor
   ;............................................................................
 
   Structure TextEditor
-    *Buffer.TextBuffer
+    *Buffer.TextBuffer ;;REVIEW: should this be *owned* by the text editor?
     CursorPosition.q
     CursorColumn.q
     CursorLine.q
@@ -214,7 +219,6 @@ ProcedureUnit CanInsertTextThroughTextEditor()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 209
-; FirstLine = 156
+; CursorPosition = 24
 ; Folding = --
 ; EnableXP
