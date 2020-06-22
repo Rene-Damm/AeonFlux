@@ -2,16 +2,16 @@
   
   #MIN_QUAD = -9223372036854775808
   #MAX_QUAD = 9223372036854775807
-  #NEWLINE = 10
   
   Macro QUOTE
     "
   EndMacro
   
+  ;;FIXME: Doesn't actually work with strings :(
   Macro DebugAssert( Expression )
     CompilerIf #PB_Compiler_Debugger
       If Not ( Expression )
-        Debug "Assert: " + QUOTE Expression QUOTE
+        Debug "Assert: " + QUOTE#Expression#QUOTE
         Debug "Line " + Str( #PB_Compiler_Line ) + " in " + #PB_Compiler_File
         CallDebugger
       EndIf
@@ -29,9 +29,11 @@
   Declare.q Max                       ( A.q, B.q )
   Declare.q AlignToMultipleOf         ( Number.q, Alignment.q )
   Declare.i CompareFnQ                ( *Left, *Right )
+  Declare.i StartsWith                ( Prefix.s, String.s )
   Declare   NotImplemented            ( Message.s )
   
   Declare.q ArrayAppendWithCapacity   ( *Ptr, *Count, *Element, SizeOfElementsInBytes.i, Increment.i = 32 )
+  Declare   ArrayEraseAtWithCapacity  ( *Ptr, *Count, Index.q, SizeOfElementsInBytes.i )
   
 EndDeclareModule
 
@@ -82,6 +84,32 @@ Module Utils
   
   ;............................................................................
   
+  Procedure.i StartsWith( Prefix.s, String.s )
+    
+    Define *PrefixPtr = @Prefix
+    Define *StringPtr = @String
+    
+    While #True
+      
+      Define.c PrefixChar = PeekC( *PrefixPtr )
+      If PrefixChar = #NUL
+        ProcedureReturn #True
+      EndIf
+      
+      Define.c StringChar = PeekC( *StringPtr )
+      If PrefixChar <> StringChar
+        ProcedureReturn #False
+      EndIf
+      
+      *PrefixPtr + SizeOf( Character )
+      *StringPtr + SizeOf( Character )
+      
+    Wend
+    
+  EndProcedure
+  
+  ;............................................................................
+  
   Procedure NotImplemented( Message.s )
     
     ShowDebugOutput()
@@ -127,9 +155,28 @@ Module Utils
     
   EndProcedure
   
+  ;............................................................................
+  
+  Procedure ArrayEraseAtWithCapacity( *Ptr, *Count, Index.q, SizeOElementInBytes.i )
+    
+    Define *Array = PeekQ( *Ptr )
+    Define.q Count = PeekQ( *Count )
+    
+    DebugAssert( *Array <> #Null )
+    DebugAssert( Index >= 0 And Index < Count )
+    
+    If Index < Count - 1
+      MoveMemory( *Array + ( Index + 1 ) * SizeOElementInBytes, *Array + Index * SizeOElementInBytes, ( Count - Index - 1 ) * SizeOElementInBytes )
+    EndIf
+    
+    PokeQ( *Count, Count - 1 )
+    
+  EndProcedure
+  
 EndModule
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 37
-; Folding = --
+; CursorPosition = 104
+; FirstLine = 67
+; Folding = ---
 ; EnableXP

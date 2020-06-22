@@ -87,7 +87,7 @@ Module TextEditor
     Define.i HasMultipleLines = #False
     Define.q Position = Count - 1
     Repeat
-      If PeekB( *Ptr + Position ) = #NEWLINE
+      If PeekB( *Ptr + Position ) = #LF
         Column - ( Position + 1 )
         HasMultipleLines = #True
         Break
@@ -210,7 +210,7 @@ ProcedureUnit CanInsertTextThroughTextEditor()
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 3 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
   
-  InsertCharacterIntoTextEditor( @Editor, #NEWLINE )
+  InsertCharacterIntoTextEditor( @Editor, #LF )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 4 )
@@ -219,6 +219,7 @@ ProcedureUnit CanInsertTextThroughTextEditor()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 24
+; CursorPosition = 212
+; FirstLine = 161
 ; Folding = --
 ; EnableXP

@@ -7,12 +7,12 @@
   <section name="data">
     <explorer view="C:\Program Files\PureBasic\Examples\" pattern="0"/>
     <log show="0"/>
-    <lastopen date="2020-06-18 11:09" user="Rene Damm" host="VORKRAFT"/>
+    <lastopen date="2020-06-21 23:53" user="Rene Damm" host="VORKRAFT"/>
   </section>
   <section name="files">
     <file name="AeonFlux.pb">
       <config load="1" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="0a74b1df98b865781842a9b7cab10884"/>
+      <fingerprint md5="fed9c325a0f4f75db4f76981c832d4d9"/>
     </file>
     <file name="GapBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
@@ -20,15 +20,19 @@
     </file>
     <file name="Shell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="0f1145f4cdfecc91bd3a6e26d3378bff"/>
+      <fingerprint md5="f45b67f24e7302ffe2467bcffbe803c7"/>
     </file>
     <file name="TextBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="074946cdbaff3368cbc5150400cce26b"/>
+      <fingerprint md5="37bbc5f3ebfc9f8b2226aa1041e9013f"/>
     </file>
     <file name="TextEditor.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="9f3f6b54b8664df577d640ddb71b64f9"/>
+      <fingerprint md5="1a6e9b00a90f06fdb878173706e37a0d"/>
+    </file>
+    <file name="TextEditorShell.pb">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
+      <fingerprint md5="2488b43ac2df42ca661d8decb3f51095"/>
     </file>
     <file name="TextMarker.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
@@ -36,7 +40,7 @@
     </file>
     <file name="Utils.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="ae2bf4c5c4334f0af667e42d0c4d3235"/>
+      <fingerprint md5="0e5ae36431efefac0b44351c685c063b"/>
     </file>
   </section>
   <section name="targets">

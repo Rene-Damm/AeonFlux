@@ -20,6 +20,9 @@ DeclareModule TextBuffer
     Text.GapBuffer                ; The actual text *in UTF-8*.
     LinePositions.TextMarkerList  ; Positions of line starts.
     
+    ;;REVIEW: add storage location?
+    ;;REVIEW: link all buffers into global list? (or optionally)
+    
     ;implement job system
     ;have list of jobs tied to text buffer
     ;N reader jobs, max 1 writer job
@@ -118,7 +121,7 @@ Module TextBuffer
     ; Add line markers, if necessary.
     For I = 0 To Count - 1
       Define.b Char = PeekB( *Text + I )
-      If Char = #NEWLINE
+      If Char = #LF
         AddMarkerToTextMarkerList( *Buffer\LinePositions, Position + I )
       EndIf
     Next
@@ -261,6 +264,7 @@ ProcedureUnit CanWriteIntoTextBuffer()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 10
+; CursorPosition = 123
+; FirstLine = 119
 ; Folding = --
 ; EnableXP
