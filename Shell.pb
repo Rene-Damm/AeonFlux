@@ -72,9 +72,15 @@ DeclareModule Shell
     Id.i
     Name.s
     Mode.s
-    Binding.s ;;TODO: allow stringed inputs such as "<C-M>i"
+    Binding.s 
     ParameterCount.i
     ; Followed by variable-size array of CommandParameter instances.
+  EndStructure
+  
+  Structure Binding
+    Input.s                 ; Input mapped to different input.
+    Command.s               ; Input mapped to command.
+    Map Bindings.Binding()  ; For stringed bindings such as "<C-M>i
   EndStructure
     
   ;;REVIEW: how is a visual aspect tied to this? at the workspace level?
@@ -90,6 +96,7 @@ DeclareModule Shell
   
   Structure ModeRecord
     Map Commands.q()
+    Map Bindings.Binding()
   EndStructure
     
   Structure EditorRecord
@@ -108,6 +115,7 @@ DeclareModule Shell
     CurrentEditor.i
     *Editors.EditorRecord
     Map EditorTypes.EditorType()
+    Array Inputs.s( 1 )
     
     ;map of macros
   EndStructure
@@ -124,9 +132,9 @@ DeclareModule Shell
   Declare.q GetEditorFromShell( *Shell.Shell, Index.i )
   Declare   ExecuteShellCommand( *Shell.Shell, Command.s )
   Declare.i ListShellCommands( *Shell.Shell, Array Commands.s( 1 ), StartingWith.s = "" )
+  Declare   SendShellInput( *Shell.Shell, Input.s )
   
   CompilerIf #False
-  Declare   SendShellInput( *Shell.Shell, Input.s )
   Declare   AddEditorToShell( *Shell.Shell, Editor.IEditor )
   Declare   RemoveEditorFromShell( *Shell.Shell, *Editor.IEditor )
   Declare   StartRecordingMacro( *Shell.Shell, Name.s )
@@ -138,6 +146,58 @@ EndDeclareModule
 Module Shell
   
   UseModule Utils
+  
+  ;............................................................................
+  
+  Procedure.i ParseInput( Input.s, Array Inputs.s( 1 ) )
+    
+    Define *Ptr = @Input
+    Define.i Length = Len( Input )
+    Define.i Capacity = ArraySize( Inputs() )
+    Define.i Count = 0
+    Define *AngleBracketStart = #Null
+    
+    While #True
+      
+      Define.c Char = PeekC( *Ptr )
+      If Char = #NUL
+        Break
+      EndIf
+      
+      Define.s Binding
+      If Char = '<'
+        *AngleBracketStart = *Ptr
+      ElseIf Char = '>'
+        Define.i NumChars = ( *Ptr - *AngleBracketStart + 1 ) / SizeOf( Character )
+        If NumChars = Length
+          Binding = Input ; Just use input string as is if there is no stringed input.
+        Else
+          Binding = Mid( Input, ( *AngleBracketStart - @Input ) / SizeOf( Character ) )
+        EndIf
+        *AngleBracketStart = #Null
+      ElseIf *AngleBracketStart = #Null
+      EndIf
+      
+      If Binding
+        If Capacity = Count
+          Capacity + 10
+          ReDim Inputs.s( Capacity )
+        EndIf
+        Inputs( Count ) = Binding
+        Count + 1
+      EndIf
+            
+      *Ptr + SizeOf( Character )
+      
+    Wend
+    
+    If *AngleBracketStart <> #Null
+      ;;TODO: error
+    EndIf
+    
+    ProcedureReturn Count
+    
+  EndProcedure
   
   ;............................................................................
   
@@ -194,6 +254,7 @@ Module Shell
       
       ; Assemble mode map from list of commands.
       Define.Command *CurrentCommand = *Commands
+      Dim Inputs.s( 10 )
       Define.i I
       For I = 0 To NumCommands - 1
         
@@ -209,6 +270,24 @@ Module Shell
         ; Add command.
         Define *Ptr = AddMapElement( *ModeRecord\Commands(), *CurrentCommand\Name )
         PokeQ( *Ptr, *CurrentCommand )
+        
+        ; Add binding, if any.
+        Define.s Binding = *CurrentCommand\Binding
+        If Len( Binding ) > 0
+          Define.i NumInputs = ParseInput( Binding, Inputs() )
+          Define.i N
+          For N = 0 To NumInputs - 1
+            If FindMapElement( *ModeRecord\Bindings(), Inputs( N ) ) <> #Null
+              ;;TODO: error
+            EndIf
+            If N = NumInputs - 1
+              Define.Binding *Element = AddMapElement( *ModeRecord\Bindings(), Inputs( N ) )
+              *Element\Command = *CurrentCommand\Name
+            Else
+              NotImplemented( "Stringed inputs" )
+            EndIf
+          Next
+        EndIf
         
         *CurrentCommand + SizeOf( Command )
         
@@ -317,6 +396,8 @@ Module Shell
     EndIf
     Define.Command *Command = PeekQ( *CommandPtrPtr )
     
+    ;;TODO: check for mode switch after command has executed
+    
     ; Execute.
     NewMap Parameters.ParameterValue()
     *Editor\Editor\ExecuteCommand( *Command\Id, Parameters.ParameterValue() )
@@ -364,6 +445,39 @@ Module Shell
     Next
     
     ProcedureReturn CommandCount
+    
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure SendShellInput( *Shell.Shell, Input.s )
+    
+    DebugAssert( *Shell <> #Null )
+    
+    If *Shell\CurrentEditor < 0
+      ProcedureReturn
+    EndIf
+    
+    Define.EditorRecord *Editor = *Shell\Editors + *Shell\CurrentEditor * SizeOf( EditorRecord )
+    Define.ModeRecord *Mode = *Editor\CurrentMode
+    DebugAssert( *Mode <> #Null )
+    
+    Define.i NumInputs = ParseInput( Input, *Shell\Inputs() )
+    Define.i Index
+    
+    For Index = 0 To NumInputs - 1
+      
+      Define.Binding *Binding = FindMapElement( *Mode\Bindings(), *Shell\Inputs( Index ) )
+      If *Binding = #Null
+        ProcedureReturn
+      EndIf
+      
+      ;;TODO: support Binding\Input
+      If Index = NumInputs - 1 And *Binding\Command
+        ExecuteShellCommand( *Shell, *Binding\Command )
+      EndIf
+      
+    Next
     
   EndProcedure
   
@@ -451,7 +565,7 @@ Module TestEditor
     EditorData( TestEditor )
       
     TestEditor_Commands:
-      CommandData( #TestEditorCommand1, "command1", "default", "<C-1>", 0 )
+      CommandData( #TestEditorCommand1, "command1", "default", "<ESC>", 0 )
       
   EndDataSection
   
@@ -517,6 +631,7 @@ ProcedureUnit CanExecuteShellCommands()
 EndProcedureUnit
 
 ;;TODO: CanExecuteShellCommandsWithParameters
+;;TODO: CanSwitchEditorModes
 
 ;..............................................................................
 
@@ -557,16 +672,20 @@ ProcedureUnit CanSendInputToShell()
 
   Define.Shell Shell
   CreateShell( @Shell )
-  Define.IEditor *Editor = CreateEditor( @Shell, SizeOf( TestEditor ), @CreateTestEditor() )
+  Define.TestEditor *Editor = CreateEditor( @Shell, SizeOf( TestEditor ), @CreateTestEditor() )
   
-  ;..........
+  SendShellInput( @Shell, "<ESC>" )
+  
+  Assert( ListSize( *Editor\RecordedCommands() ) = 1 )
+  Define.RecordedCommand *Command = FirstElement( *Editor\RecordedCommands() )
+  Assert( *Command\Id = #TestEditorCommand1 )
   
   DestroyShell( @Shell )
   
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 97
-; FirstLine = 84
+; CursorPosition = 469
+; FirstLine = 444
 ; Folding = ----
 ; EnableXP

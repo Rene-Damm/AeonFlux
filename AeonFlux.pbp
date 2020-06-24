@@ -7,7 +7,7 @@
   <section name="data">
     <explorer view="C:\Program Files\PureBasic\Examples\" pattern="0"/>
     <log show="0"/>
-    <lastopen date="2020-06-21 23:53" user="Rene Damm" host="VORKRAFT"/>
+    <lastopen date="2020-06-23 11:11" user="Rene Damm" host="VORKRAFT"/>
   </section>
   <section name="files">
     <file name="AeonFlux.pb">
@@ -20,7 +20,7 @@
     </file>
     <file name="Shell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="f45b67f24e7302ffe2467bcffbe803c7"/>
+      <fingerprint md5="c50ec58dc30ef7e8d5d07eb0d00fa73d"/>
     </file>
     <file name="TextBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
