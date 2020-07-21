@@ -2,6 +2,7 @@ EnableExplicit
 
 XIncludeFile "Utils.pb"
 XIncludeFile "TextEditor.pb"
+XIncludeFile "Shell.pb"
 
 ; Adds a command model around TextEditor.
 ; Command model is very Vim-inspired.
@@ -12,15 +13,23 @@ DeclareModule TextEditorShell
     
   ;............................................................................
   
+  Enumeration TextEditorMode
+    #NormalMode
+    #InsertMode
+  EndEnumeration
+  
+  ;............................................................................
+  
   Structure TextEditorShell
     *Methods
+    Mode.i
     Editor.TextEditor
     Buffer.TextBuffer
   EndStructure
     
   ;............................................................................
 
-  Declare.q CreateTextEditorShell( *Editor.TextEditorShell )
+  Declare CreateTextEditorShell( *Editor.TextEditorShell )
 
 EndDeclareModule
 
@@ -29,26 +38,43 @@ Module TextEditorShell
   UseModule Utils
   UseModule TextEditor
   UseModule TextBuffer
+  UseModule Shell
   
   ;............................................................................
   
-  Procedure.q CreateTextEditorShell( *Editor.TextEditorShell )
+  Enumeration TextEditorCommands
+    
+    ; Mode commands.
+    #TextEditorEnterInsertMode
+    #TextEditorExitInsertMode
+    
+    ; Cursor motion commands.
+    #TextEditorMoveLeft
+    #TextEditorMoveRight
+    #TextEditorMoveUp
+    #TextEditorMoveDown
+    
+  EndEnumeration
+  
+  ;............................................................................
+  
+  Procedure CreateTextEditorShell( *Editor.TextEditorShell )
     
     DebugAssert( *Editor <> #Null )
     
     InitializeStructure( *Editor, TextEditorShell )
-    *Editor\Methods = ?TextEditorShell_VTable
+    
+    *Editor\Methods = ?TextEditor_VTable
+    *Editor\Mode = #NormalMode
     
     CreateTextBuffer( @*Editor\Buffer )
     CreateTextEditor( @*Editor\Editor, @*Editor\Buffer )
-    
-    ProcedureReturn *Editor
     
   EndProcedure
   
   ;............................................................................
   
-  Procedure.s TextEditorShell_GetType( *Editor.TextEditorShell )
+  Procedure.s TextEditor_GetType( *Editor.TextEditorShell )
     
     DebugAssert( *Editor <> #Null )
     
@@ -58,28 +84,114 @@ Module TextEditorShell
   
   ;............................................................................
   
+  Procedure.s TextEditor_GetMode( *Editor.TextEditorShell )
+    
+    DebugAssert( *Editor <> #Null )
+    
+    Select *Editor\Mode
+      Case #InsertMode
+        ProcedureReturn "insert"
+    EndSelect
+    
+    ProcedureReturn "normal"
+
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure.q TextEditor_GetCommands( *Editor.TextEditorShell, *OutCommands.Command )
+    
+    DebugAssert( *Editor <> #Null )
+    
+    PokeQ( *OutCommands, ?TextEditor_Commands )
+    ProcedureReturn 4
+    
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure TextEditor_ExecuteCommand( *Editor.TextEditorShell, CommandId.i, Map Parameters.ParameterValue() )
+    
+    DebugAssert( *Editor <> #Null )
+    
+    Select CommandId
+        
+      Case #TextEditorEnterInsertMode
+        *Editor\Mode = #InsertMode
+        
+      Case #TextEditorExitInsertMode
+        *Editor\Mode = #NormalMode
+        
+      Case #TextEditorMoveLeft
+        
+      Case #TextEditorMoveRight
+        
+      Case #TextEditorMoveUp
+        
+      Case #TextEditorMoveDown
+        
+    EndSelect
+    
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure TextEditor_SendInput( *Editor.TextEditorShell, Input.s )
+    
+    DebugAssert( *Editor <> #Null )
+    
+    InsertStringIntoTextEditor( @*Editor\Editor, Input )
+    
+  EndProcedure
+  
+  ;............................................................................
+  
   DataSection
-    ; IEditor
-    TextEditorShell_VTable:
-      Data.q @TextEditorShell_GetType() 
+    
+    EditorData( TextEditor )
+    
+    TextEditor_Commands:
+      CommandData( #TextEditorEnterInsertMode, "insert", "normal", "i", 0 )
+      CommandData( #TextEditorExitInsertMode, "exit", "insert", "<ESC>", 0 )
+      CommandData( #TextEditorMoveLeft, "move_left", "normal", "h", 0 )
+      CommandData( #TextEditorMoveRight, "move_right", "normal", "l", 0 )
+      CommandData( #TextEditorMoveUp, "move_up", "normal", "k", 0 )
+      CommandData( #TextEditorMoveDown, "move_down", "normal", "j", 0 )
+    
   EndDataSection
   
 EndModule
 
 ;..............................................................................
 
-ProcedureUnit CanCreateTextEditorShell()
+ProcedureUnit CanCreateTextEditorInShell()
 
+  UseModule Shell
   UseModule TextEditorShell
+  UseModule TextBuffer
+  UseModule TextEditor
   
-  Define.TextEditorShell TextEditorShell
-  Define.IEditor TextEditor = CreateTextEditorShell( @TextEditorShell )
+  Define.Shell Shell
+  CreateShell( @Shell )
+  Define.IEditor *Editor = CreateEditor( @Shell, SizeOf( TextEditorShell ), @CreateTextEditorShell() )
+  Define.TextEditorShell *TextEditor = *Editor
   
-  Assert( TextEditor\GetType() = "TextEditor" )
+  Assert( *Editor\GetType() = "TextEditor" )
+  Assert( *Editor\GetMode() = "normal" )
+  Assert( GetCurrentEditor( @Shell ) = *Editor )
+  
+  SendShellInput( @Shell, "itext" )
+  
+  Assert( *Editor\GetMode() = "insert" )
+  Assert( GetTextBufferLength( *TextEditor\Buffer ) = 4 )
+  Assert( GetTextBufferLineCount( *TextEditor\Buffer ) = 1 )
+  
+  DestroyShell( @Shell )  
 
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 23
-; Folding = -
+; CursorPosition = 142
+; FirstLine = 128
+; Folding = --
 ; EnableXP

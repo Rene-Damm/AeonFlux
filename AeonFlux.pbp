@@ -7,7 +7,7 @@
   <section name="data">
     <explorer view="C:\Program Files\PureBasic\Examples\" pattern="0"/>
     <log show="0"/>
-    <lastopen date="2020-06-23 11:11" user="Rene Damm" host="VORKRAFT"/>
+    <lastopen date="2020-07-20 19:25" user="Rene Damm" host="VORKRAFT"/>
   </section>
   <section name="files">
     <file name="AeonFlux.pb">
@@ -20,7 +20,7 @@
     </file>
     <file name="Shell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="c50ec58dc30ef7e8d5d07eb0d00fa73d"/>
+      <fingerprint md5="c27a849096e13575723cde4ebd7fa017"/>
     </file>
     <file name="TextBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
@@ -32,7 +32,7 @@
     </file>
     <file name="TextEditorShell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="2488b43ac2df42ca661d8decb3f51095"/>
+      <fingerprint md5="3625de425054b53285530e08dd77c727"/>
     </file>
     <file name="TextMarker.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
@@ -40,7 +40,7 @@
     </file>
     <file name="Utils.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="0e5ae36431efefac0b44351c685c063b"/>
+      <fingerprint md5="57d1a05dd135f02d1e5ceb7713caa13c"/>
     </file>
   </section>
   <section name="targets">

@@ -35,6 +35,9 @@
   Declare.q ArrayAppendWithCapacity   ( *Ptr, *Count, *Element, SizeOfElementsInBytes.i, Increment.i = 32 )
   Declare   ArrayEraseAtWithCapacity  ( *Ptr, *Count, Index.q, SizeOfElementsInBytes.i )
   
+  Declare.s StringAppendChars         ( Buffer.s, *BufferLength, *BufferCapacity, *Chars, NumChars.i )
+  Declare.q FindStringInArray         ( Array Strings.s( 1 ), String.s )
+  
 EndDeclareModule
 
 Module Utils
@@ -173,10 +176,59 @@ Module Utils
     
   EndProcedure
   
+  ;............................................................................
+  
+  Procedure.s StringAppendChars( Buffer.s, *BufferLength, *BufferCapacity, *Chars, NumChars.i )
+    
+    DebugAssert( *BufferLength <> #Null )
+    DebugAssert( *BufferCapacity <> #Null )
+    DebugAssert( *Chars <> #Null )
+    
+    Define.i Length = PeekI( *BufferLength )
+    Define.i Capacity = PeekI( *BufferCapacity )
+    
+    ; Grow buffer, if necessary.
+    If Length + NumChars + 1 > Capacity ; Account for terminator.
+      Capacity + Max( NumChars + 1, 32 )
+      Define.s NewBuffer = Space( Capacity )
+      If Length > 0
+        CopyMemory( @Buffer, @NewBuffer, Length * SizeOf( Character ) )
+      EndIf
+      PokeI( *BufferCapacity, Capacity )
+      Buffer = NewBuffer
+    EndIf
+    
+    ; Append characters.
+    CopyMemory( *Chars, @Buffer + Length * SizeOf( Character ), NumChars * SizeOf( Character ) )
+    PokeC( @Buffer + ( Length + NumChars ) * SizeOf( Character ), #NUL )
+    PokeI( *BufferLength, Length + NumChars )
+    
+    ProcedureReturn Buffer
+    
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure.q FindStringInArray( Array Strings.s( 1 ), String.s )
+    
+    Define.q Length = ArraySize( Strings() )
+    Define.q StringLen = Len( String )
+    Define.q Index
+    For Index = 0 To Length - 1
+      Define.s Element = Strings( Index )
+      If FindString( Element, String, 0, #PB_String_NoCase ) And Len( Element ) = StringLen
+        ProcedureReturn Index
+      EndIf
+    Next
+    
+    ProcedureReturn -1
+    
+  EndProcedure
+  
 EndModule
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 104
-; FirstLine = 67
+; CursorPosition = 213
+; FirstLine = 170
 ; Folding = ---
 ; EnableXP

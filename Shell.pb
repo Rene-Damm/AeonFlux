@@ -37,6 +37,7 @@ DeclareModule Shell
       Data.q @Name#_GetMode()
       Data.q @Name#_GetCommands()
       Data.q @Name#_ExecuteCommand()
+      Data.q @Name#_SendInput()
   EndMacro
 
   Macro CommandData( Id, Name, Mode, Binding, ParameterCount )
@@ -79,7 +80,7 @@ DeclareModule Shell
   
   Structure Binding
     Input.s                 ; Input mapped to different input.
-    Command.s               ; Input mapped to command.
+    *Command.Command        ; Input mapped to command.
     Map Bindings.Binding()  ; For stringed bindings such as "<C-M>i
   EndStructure
     
@@ -89,7 +90,7 @@ DeclareModule Shell
     GetMode.s()
     GetCommands.i( *OutCommands.Command )
     ExecuteCommand( Id.i, Map Parameters.ParameterValue() )
-    ;SendInput( ... ) ; any input that isn't bound to a command
+    SendInput( Input.s ) ;;TODO: send as raw UTF-8 buffer rather than string
     ;SaveState.s() ;raw memory buffer instead?
     ;LoadState( State.s )
   EndInterface
@@ -147,6 +148,11 @@ Module Shell
   
   UseModule Utils
   
+  Structure ShellInput
+    *Command.Command
+    Text.s
+  EndStructure
+  
   ;............................................................................
   
   Procedure.i ParseInput( Input.s, Array Inputs.s( 1 ) )
@@ -176,6 +182,7 @@ Module Shell
         EndIf
         *AngleBracketStart = #Null
       ElseIf *AngleBracketStart = #Null
+        ;;TODO
       EndIf
       
       If Binding
@@ -274,19 +281,16 @@ Module Shell
         ; Add binding, if any.
         Define.s Binding = *CurrentCommand\Binding
         If Len( Binding ) > 0
-          Define.i NumInputs = ParseInput( Binding, Inputs() )
-          Define.i N
-          For N = 0 To NumInputs - 1
-            If FindMapElement( *ModeRecord\Bindings(), Inputs( N ) ) <> #Null
-              ;;TODO: error
-            EndIf
-            If N = NumInputs - 1
-              Define.Binding *Element = AddMapElement( *ModeRecord\Bindings(), Inputs( N ) )
-              *Element\Command = *CurrentCommand\Name
-            Else
-              NotImplemented( "Stringed inputs" )
-            EndIf
-          Next
+          
+          ;;TODO: support stringed inputs such as <C-M>i
+          
+          If FindMapElement( *ModeRecord\Bindings(), Binding ) <> #Null
+            ;;TODO: error
+          EndIf
+          
+          Define.Binding *Element = AddMapElement( *ModeRecord\Bindings(), Binding )
+          *Element\Command = *CurrentCommand
+          
         EndIf
         
         *CurrentCommand + SizeOf( Command )
@@ -462,22 +466,103 @@ Module Shell
     Define.ModeRecord *Mode = *Editor\CurrentMode
     DebugAssert( *Mode <> #Null )
     
-    Define.i NumInputs = ParseInput( Input, *Shell\Inputs() )
-    Define.i Index
+    Define *Ptr = @Input
+    Define *StartPtr = *Ptr
+    Define.i Length = Len( Input )
+    Define.s Buffer
+    Define.i BufferLength = 0
+    Define.i BufferCapacity = 0
+    Define.i InAngleBrackets = #False
     
-    For Index = 0 To NumInputs - 1
+    ; Parse input.
+    While #True
       
-      Define.Binding *Binding = FindMapElement( *Mode\Bindings(), *Shell\Inputs( Index ) )
-      If *Binding = #Null
-        ProcedureReturn
+      Define.c Char = PeekC( *Ptr )
+      Define.Command *Command = #Null
+      
+      ;;TODO: deal with \< and \\
+      
+      If Char = '<'
+        
+        ; Start of angle bracket sequence.
+        InAngleBrackets = #True
+        ; If we have unflushed input, cause it to be flushed.
+        If *StartPtr <> *Ptr
+          Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, ( *Ptr - *StartPtr ) / SizeOf( Character ) )
+        EndIf
+        *StartPtr = *Ptr ; Include '<'
+        
+      ElseIf Char = '>' And InAngleBrackets
+        
+        ; End of angle bracket sequence.
+        InAngleBrackets = #False
+        Define.i SequenceLength = *Ptr - *StartPtr + 2 ; Include '>'
+        If SequenceLength > 0
+          
+          Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, SequenceLength / SizeOf( Character ) )
+          Define.Binding *Binding = FindMapElement( *Mode\Bindings(), Buffer )
+          ;;TODO: support stringed input (such as <C-m>i)
+          If *Binding <> #Null
+            If MapSize( *Binding\Bindings() ) > 0
+              NotImplemented( "stringed bindings" )
+            EndIf
+            *Command = *Binding\Command
+          EndIf
+          BufferLength = 0
+          
+        EndIf
+        
+      ElseIf Char = #NUL
+        
+        ; Flush input.
+        If *StartPtr <> *Ptr
+          Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, ( *Ptr - *StartPtr ) / SizeOf( Character ) )
+        EndIf
+        *StartPtr = *Ptr + SizeOf( Character )
+        
+      Else
+        
+        ; Check if current character is mapped to command.
+        Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *Ptr, 1 )
+        Define.Binding *Binding = FindMapElement( *Mode\Bindings(), Buffer )
+        BufferLength = 0
+        
+        If *Binding <> #Null
+          ; Yes, it is. Flush prior input (if any) and execute command.
+          If *StartPtr <> *Ptr
+            Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, ( *Ptr - *StartPtr ) / SizeOf( Character ) )
+          EndIf
+          *StartPtr = *Ptr + SizeOf( Character )
+          *Command = *Binding\Command
+        EndIf
+        
       EndIf
       
-      ;;TODO: support Binding\Input
-      If Index = NumInputs - 1 And *Binding\Command
-        ExecuteShellCommand( *Shell, *Binding\Command )
+      ; Send input.
+      If BufferLength > 0 And ( *Command <> #Null Or Char = #NUL )
+        *Editor\Editor\SendInput( Buffer )
+        BufferLength = 0
       EndIf
       
-    Next
+      ; Execute command.
+      If *Command <> #Null
+        ;;TODO: get rid of temporary map allocation
+        NewMap Parameters.ParameterValue()
+        *Editor\Editor\ExecuteCommand( *Command\Id, Parameters.ParameterValue() )
+        FreeMap( Parameters() )
+      EndIf
+        
+      If Char = #NUL
+        Break
+      EndIf
+     
+      *Ptr + SizeOf( Character )
+      
+    Wend
+    
+    If InAngleBrackets
+      ;;TODO: error
+    EndIf
     
   EndProcedure
   
@@ -494,6 +579,7 @@ DeclareModule TestEditor
   Enumeration TestEditorCommands
     #TestEditorCommandNone
     #TestEditorCommand1
+    #TestEditorCommand2
   EndEnumeration
   
   Structure RecordedCommand
@@ -505,6 +591,7 @@ DeclareModule TestEditor
     *Methods
     CurrentMode.s
     List RecordedCommands.RecordedCommand()
+    List RecordedInputs.s()
   EndStructure
   
   ;............................................................................
@@ -546,18 +633,26 @@ Module TestEditor
   Procedure.i TestEditor_GetCommands( *Editor.TestEditor, *OutCommands.Command )
     DebugAssert( *OutCommands <> #Null )
     PokeQ( *OutCommands, ?TestEditor_Commands )
-    ProcedureReturn 1
+    ProcedureReturn 2
   EndProcedure
   
   ;............................................................................
   
   Procedure TestEditor_ExecuteCommand( *Editor.TestEditor, CommandId.i, Map Parameters.ParameterValue() )
     DebugAssert( *Editor <> #Null )
-    Define.RecordedCommand *Record= AddElement( *Editor\RecordedCommands() )
+    Define.RecordedCommand *Record = AddElement( *Editor\RecordedCommands() )
     *Record\Id = CommandId
     CopyMap( Parameters(), *Record\Parameters() )
   EndProcedure
   
+  ;............................................................................
+  
+  Procedure TestEditor_SendInput( *Editor.TestEditor, Input.s )
+    DebugAssert( *Editor <> #Null )
+    AddElement( *Editor\RecordedInputs() )
+    *Editor\RecordedInputs() = Input
+  EndProcedure
+ 
   ;............................................................................
   
   DataSection
@@ -566,6 +661,7 @@ Module TestEditor
       
     TestEditor_Commands:
       CommandData( #TestEditorCommand1, "command1", "default", "<ESC>", 0 )
+      CommandData( #TestEditorCommand2, "othercommand", "default", "i", 0 )
       
   EndDataSection
   
@@ -639,6 +735,7 @@ ProcedureUnit CanListAvailableCommands()
 
   UseModule Shell
   UseModule TextEditor
+  UseModule Utils
   
   Define.Shell Shell
   CreateShell( @Shell )
@@ -649,8 +746,9 @@ ProcedureUnit CanListAvailableCommands()
   Define.i CommandCount = ListShellCommands( @Shell, Commands() )
   
   Assert( ArraySize( Commands() ) > 0 )
-  Assert( CommandCount = 1 )
-  Assert( Commands( 0 ) = "command1" )
+  Assert( CommandCount = 2 )
+  Assert( FindStringInArray( Commands(), "command1" ) <> -1 )
+  Assert( FindStringInArray( Commands(), "othercommand" ) <> -1 )
   
   CommandCount = ListShellCommands( @Shell, Commands(), "com" )
   
@@ -684,8 +782,31 @@ ProcedureUnit CanSendInputToShell()
   
 EndProcedureUnit
 
+;..............................................................................
+
+ProcedureUnit CanSendMixedCommmandAndTextInputToShell()
+
+  UseModule Shell
+  UseModule TestEditor
+
+  Define.Shell Shell
+  CreateShell( @Shell )
+  Define.TestEditor *Editor = CreateEditor( @Shell, SizeOf( TestEditor ), @CreateTestEditor() )
+  
+  SendShellInput( @Shell, "itest" )
+  
+  Assert( ListSize( *Editor\RecordedCommands() ) = 1 )
+  Assert( ListSize( *Editor\RecordedInputs() ) = 1 )
+  Assert( *Editor\RecordedCommands()\Id = #TestEditorCommand2 )
+  Assert( MapSize( *Editor\RecordedCommands()\Parameters() ) = 0 )
+  Assert( *Editor\RecordedInputs() = "test" )
+  
+  DestroyShell( @Shell )
+  
+EndProcedureUnit
+
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 469
-; FirstLine = 444
+; CursorPosition = 92
+; FirstLine = 73
 ; Folding = ----
 ; EnableXP
