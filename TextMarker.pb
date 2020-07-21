@@ -168,7 +168,6 @@ Module TextMarker
     ; NOTE: We always write into the left side buffer, so we don't
     ;       need to adjust the position here.
     WriteIntoGapBuffer( *List\Buffer, @Position, 1 )
-    ;UnitDebug( Str( GetGapBufferPosition( *List\Buffer ) ) )
     If Position > *List\EndPosition
       *List\EndPosition = Position
     EndIf
@@ -422,6 +421,7 @@ ProcedureUnit CanAddMarkersToList()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 17
+; CursorPosition = 170
+; FirstLine = 145
 ; Folding = ---
 ; EnableXP

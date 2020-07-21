@@ -96,6 +96,7 @@ DeclareModule Shell
   EndInterface
   
   Structure ModeRecord
+    Name.s
     Map Commands.q()
     Map Bindings.Binding()
   EndStructure
@@ -152,60 +153,7 @@ Module Shell
     *Command.Command
     Text.s
   EndStructure
-  
-  ;............................................................................
-  
-  Procedure.i ParseInput( Input.s, Array Inputs.s( 1 ) )
     
-    Define *Ptr = @Input
-    Define.i Length = Len( Input )
-    Define.i Capacity = ArraySize( Inputs() )
-    Define.i Count = 0
-    Define *AngleBracketStart = #Null
-    
-    While #True
-      
-      Define.c Char = PeekC( *Ptr )
-      If Char = #NUL
-        Break
-      EndIf
-      
-      Define.s Binding
-      If Char = '<'
-        *AngleBracketStart = *Ptr
-      ElseIf Char = '>'
-        Define.i NumChars = ( *Ptr - *AngleBracketStart + 1 ) / SizeOf( Character )
-        If NumChars = Length
-          Binding = Input ; Just use input string as is if there is no stringed input.
-        Else
-          Binding = Mid( Input, ( *AngleBracketStart - @Input ) / SizeOf( Character ) )
-        EndIf
-        *AngleBracketStart = #Null
-      ElseIf *AngleBracketStart = #Null
-        ;;TODO
-      EndIf
-      
-      If Binding
-        If Capacity = Count
-          Capacity + 10
-          ReDim Inputs.s( Capacity )
-        EndIf
-        Inputs( Count ) = Binding
-        Count + 1
-      EndIf
-            
-      *Ptr + SizeOf( Character )
-      
-    Wend
-    
-    If *AngleBracketStart <> #Null
-      ;;TODO: error
-    EndIf
-    
-    ProcedureReturn Count
-    
-  EndProcedure
-  
   ;............................................................................
   
   Procedure CreateShell( *Shell.Shell )
@@ -272,6 +220,7 @@ Module Shell
         Define.ModeRecord *ModeRecord = FindMapElement( *EditorType\Modes(), Mode )
         If *ModeRecord = #Null
           *ModeRecord = AddMapElement( *EditorType\Modes(), Mode )
+          *ModeRecord\Name = Mode
         EndIf
         
         ; Add command.
@@ -382,6 +331,31 @@ Module Shell
   
   ;............................................................................
   
+  Procedure InternalExecuteShellCommand( *Editor.EditorRecord, *Command.Command )
+    
+    ;;TODO: get rid of temporary map allocation
+    ; Execute.
+    NewMap Parameters.ParameterValue()
+    *Editor\Editor\ExecuteCommand( *Command\Id, Parameters.ParameterValue() )
+    FreeMap( Parameters() )
+    
+    ; Check for mode switch.
+    Define.s Mode = *Editor\Editor\GetMode()
+    If Mode <> *Editor\CurrentMode\Name
+      
+      DebugAssert( Len( Mode ) > 0 )
+      
+      Define.ModeRecord *NewMode = FindMapElement( *Editor\EditorType\Modes(), Mode )
+      
+      DebugAssert( *NewMode <> #Null )
+      *Editor\CurrentMode = *NewMode
+      
+    EndIf
+    
+  EndProcedure
+  
+  ;............................................................................
+  
   Procedure ExecuteShellCommand( *Shell.Shell, Command.s )
     
     DebugAssert( *Shell <> #Null )
@@ -399,13 +373,9 @@ Module Shell
       ProcedureReturn
     EndIf
     Define.Command *Command = PeekQ( *CommandPtrPtr )
-    
-    ;;TODO: check for mode switch after command has executed
-    
+   
     ; Execute.
-    NewMap Parameters.ParameterValue()
-    *Editor\Editor\ExecuteCommand( *Command\Id, Parameters.ParameterValue() )
-    FreeMap( Parameters() )
+    InternalExecuteShellCommand( *Editor, *Command )
     
   EndProcedure
   
@@ -546,10 +516,7 @@ Module Shell
       
       ; Execute command.
       If *Command <> #Null
-        ;;TODO: get rid of temporary map allocation
-        NewMap Parameters.ParameterValue()
-        *Editor\Editor\ExecuteCommand( *Command\Id, Parameters.ParameterValue() )
-        FreeMap( Parameters() )
+        InternalExecuteShellCommand( *Editor, *Command )
       EndIf
         
       If Char = #NUL
@@ -580,6 +547,8 @@ DeclareModule TestEditor
     #TestEditorCommandNone
     #TestEditorCommand1
     #TestEditorCommand2
+    #TestEditorSwitchToMode1
+    #TestEditorSwitchToDefaultMode
   EndEnumeration
   
   Structure RecordedCommand
@@ -633,16 +602,29 @@ Module TestEditor
   Procedure.i TestEditor_GetCommands( *Editor.TestEditor, *OutCommands.Command )
     DebugAssert( *OutCommands <> #Null )
     PokeQ( *OutCommands, ?TestEditor_Commands )
-    ProcedureReturn 2
+    ProcedureReturn 4
   EndProcedure
   
   ;............................................................................
   
   Procedure TestEditor_ExecuteCommand( *Editor.TestEditor, CommandId.i, Map Parameters.ParameterValue() )
+    
     DebugAssert( *Editor <> #Null )
+    
     Define.RecordedCommand *Record = AddElement( *Editor\RecordedCommands() )
     *Record\Id = CommandId
     CopyMap( Parameters(), *Record\Parameters() )
+    
+    Select CommandId
+        
+      Case #TestEditorSwitchToDefaultMode:
+        *Editor\CurrentMode = "default"
+        
+      Case #TestEditorSwitchToMode1:
+        *Editor\CurrentMode = "mode1"
+        
+    EndSelect
+    
   EndProcedure
   
   ;............................................................................
@@ -662,6 +644,8 @@ Module TestEditor
     TestEditor_Commands:
       CommandData( #TestEditorCommand1, "command1", "default", "<ESC>", 0 )
       CommandData( #TestEditorCommand2, "othercommand", "default", "i", 0 )
+      CommandData( #TestEditorSwitchToMode1, "switchtomode1", "default", "p", 0 )
+      CommandData( #TestEditorSwitchToDefaultMode, "switchtodefaultmode", "mode1", "<ESC>", 0 )
       
   EndDataSection
   
@@ -746,9 +730,10 @@ ProcedureUnit CanListAvailableCommands()
   Define.i CommandCount = ListShellCommands( @Shell, Commands() )
   
   Assert( ArraySize( Commands() ) > 0 )
-  Assert( CommandCount = 2 )
+  Assert( CommandCount = 3 )
   Assert( FindStringInArray( Commands(), "command1" ) <> -1 )
   Assert( FindStringInArray( Commands(), "othercommand" ) <> -1 )
+  Assert( FindStringInArray( Commands(), "switchtomode1" ) <> -1 )
   
   CommandCount = ListShellCommands( @Shell, Commands(), "com" )
   
@@ -805,8 +790,37 @@ ProcedureUnit CanSendMixedCommmandAndTextInputToShell()
   
 EndProcedureUnit
 
+;..............................................................................
+
+ProcedureUnit CanSwitchEditorModesInShell()
+
+  UseModule Shell
+  UseModule TestEditor
+
+  Define.Shell Shell
+  CreateShell( @Shell )
+  Define.TestEditor *Editor = CreateEditor( @Shell, SizeOf( TestEditor ), @CreateTestEditor() )
+  
+  SendShellInput( @Shell, "p" )
+  
+  Assert( ListSize( *Editor\RecordedCommands() ) = 1 )
+  Assert( *Editor\RecordedCommands()\Id = #TestEditorSwitchToMode1 )
+  Assert( *Editor\CurrentMode = "mode1" )
+  
+  ClearList( *Editor\RecordedCommands() )
+  
+  SendShellInput( @Shell, "<ESC>" )
+  
+  Assert( ListSize( *Editor\RecordedCommands() ) = 1 )
+  Assert( *Editor\RecordedCommands()\Id = #TestEditorSwitchToDefaultMode )
+  Assert( *Editor\CurrentMode = "default" )
+  
+  DestroyShell( @Shell )
+
+EndProcedureUnit
+
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 92
-; FirstLine = 73
+; CursorPosition = 623
+; FirstLine = 593
 ; Folding = ----
 ; EnableXP

@@ -191,7 +191,7 @@ ProcedureUnit CanCreateTextEditorInShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 142
-; FirstLine = 128
+; CursorPosition = 191
+; FirstLine = 133
 ; Folding = --
 ; EnableXP
