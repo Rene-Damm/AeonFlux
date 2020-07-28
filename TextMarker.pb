@@ -47,8 +47,10 @@ DeclareModule TextMarker
   Declare   DestroyTextMarkerList( *List.TextMarkerList )
   Declare.q GetTextMarkerListLength( *List.TextMarkerList )
   Declare   AddMarkerToTextMarkerList( *List.TextMarkerList, Position.q )
+  Declare.q GetMarkerPosition( *List.TextMarkerList, Index.q )
   Declare.q GetNextMarkerPosition( *List.TextMarkerList, Position.q )
   Declare.q GetPreviousMarkerPosition( *List.TextMarkerList, Position.q )
+  Declare   PositionTextMarkerListGap( *List.TextMarkerList, Position.q )
   Declare   ShiftLastMarkerPosition( *List.TextMarkerList, Amount.q )
   Declare.s TextMarkerListDebugString( *List.TextMarkerList )
   
@@ -82,20 +84,20 @@ Module TextMarker
   ;............................................................................
   
   Procedure InitializeTextMarkerList( *List.TextMarkerList )
-    InitializeGapBuffer( *List\Buffer, SizeOf( Quad ) )
+    InitializeGapBuffer( @*List\Buffer, SizeOf( Quad ) )
     *List\EndPosition = 0
   EndProcedure
   
   ;............................................................................
   
   Procedure DestroyTextMarkerList( *List.TextMarkerList )
-    FreeGapBuffer( *List\Buffer )
+    FreeGapBuffer( @*List\Buffer )
   EndProcedure
   
   ;............................................................................
   
   Procedure.q GetTextMarkerListLength( *List.TextMarkerList )
-    ProcedureReturn GetGapBufferLength( *List\Buffer )
+    ProcedureReturn GetGapBufferLength( @*List\Buffer )
   EndProcedure
   
   ;............................................................................
@@ -104,70 +106,12 @@ Module TextMarker
     
     DebugAssert( Position >= 0 )
     
-    Define *Buffer.GapBuffer = @*List\Buffer
-    
-    Define *LeftEnd = *Buffer\LeftBufferEnd
-    Define *RightStart = *Buffer\RightBufferStart
-    Define.q EndPosition = *List\EndPosition
-    
-    ; Move gap left, if necessary.
-    Define.q ShiftLeftCount = 0
-    While #True
-      
-      *LeftEnd - SizeOf( Quad )
-      If *LeftEnd < *Buffer\LeftBuffer
-        Break
-      EndIf
-      
-      Define.q LeftPosition = PeekQ( *LeftEnd )
-      If LeftPosition <= Position
-        Break
-      EndIf
-      
-      PokeQ( *LeftEnd, EndPosition - LeftPosition )
-      ShiftLeftCount + 1
-      
-    Wend
-      
-    If ShiftLeftCount > 0
-      MoveGapInGapBufferRelative( *Buffer, - ShiftLeftCount )
-    Else
-      
-      ; Move gap right, if necessary.
-      Define *RightEnd = *Buffer\RightBuffer + *Buffer\RightBufferSizeInBytes
-      If *RightStart < *RightEnd
-        
-        Define.q ShiftRightCount = 0
-        
-        While #True
-          
-          Define.q RightPosition = EndPosition - PeekQ( *RightStart )
-          If RightPosition > Position
-            Break
-          EndIf
-          
-          PokeQ( *RightStart, RightPosition )
-          ShiftRightCount + 1
-      
-          *RightStart + SizeOf( Quad )
-          If *RightStart >= *RightEnd
-            Break
-          EndIf
-          
-        Wend
-        
-        If ShiftRightCount > 0
-          MoveGapInGapBufferRelative( *Buffer, ShiftRightCount )
-        EndIf
-
-      EndIf
-            
-    EndIf
+    PositionTextMarkerListGap( *List, Position )
         
     ; Insert marker.
     ; NOTE: We always write into the left side buffer, so we don't
     ;       need to adjust the position here.
-    WriteIntoGapBuffer( *List\Buffer, @Position, 1 )
+    WriteIntoGapBuffer( @*List\Buffer, @Position, 1 )
     If Position > *List\EndPosition
       *List\EndPosition = Position
     EndIf
@@ -176,8 +120,40 @@ Module TextMarker
   
   ;............................................................................
   
+  Procedure.q GetMarkerPosition( *List.TextMarkerList, Index.q )
+    
+    DebugAssert( *List <> #Null )
+    DebugAssert( Index >= 0 )
+    DebugAssert( Index < GetTextMarkerListLength( *List ) )
+    
+    Define.q *Ptr = GapBufferElementAt( @*List\Buffer, Index )
+    
+    ; Determine whether element is on left or right side.
+    Define.q Position
+    If *Ptr < *List\Buffer\LeftBufferEnd
+      
+      DebugAssert( *Ptr >= *List\Buffer\LeftBuffer )
+      
+      Position = PeekQ( *Ptr )
+      
+    Else
+      
+      DebugAssert( *Ptr >= *List\Buffer\RightBufferStart )
+      DebugAssert( *Ptr < *List\Buffer\RightBufferStart + *List\Buffer\RightBufferSizeInBytes )
+      
+      Position = *List\EndPosition - PeekQ( *Ptr )
+      
+    EndIf
+    
+    ProcedureReturn Position
+    
+  EndProcedure
+  
+  ;............................................................................
+  
   Procedure.q GetNextMarkerPosition( *List.TextMarkerList, Position.q )
     
+    DebugAssert( *List <> #Null )
     DebugAssert( Position >= 0 )
     
     Define.GapBuffer *Buffer = @*List\Buffer
@@ -307,12 +283,82 @@ Module TextMarker
   
   ;............................................................................
   
+  Procedure PositionTextMarkerListGap( *List.TextMarkerList, Position.q )
+    
+    DebugAssert( Position >= 0 )
+    
+    Define *Buffer.GapBuffer = @*List\Buffer
+    
+    Define *LeftEnd = *Buffer\LeftBufferEnd
+    Define *RightStart = *Buffer\RightBufferStart
+    Define.q EndPosition = *List\EndPosition
+    
+    ; Move gap left, if necessary.
+    Define.q ShiftLeftCount = 0
+    While #True
+      
+      *LeftEnd - SizeOf( Quad )
+      If *LeftEnd < *Buffer\LeftBuffer
+        Break
+      EndIf
+      
+      Define.q LeftPosition = PeekQ( *LeftEnd )
+      If LeftPosition <= Position
+        Break
+      EndIf
+      
+      PokeQ( *LeftEnd, EndPosition - LeftPosition )
+      ShiftLeftCount + 1
+      
+    Wend
+      
+    If ShiftLeftCount > 0
+      MoveGapInGapBufferRelative( *Buffer, - ShiftLeftCount )
+    Else
+      
+      ; Move gap right, if necessary.
+      Define *RightEnd = *Buffer\RightBuffer + *Buffer\RightBufferSizeInBytes
+      If *RightStart < *RightEnd
+        
+        Define.q ShiftRightCount = 0
+        
+        While #True
+          
+          Define.q RightPosition = EndPosition - PeekQ( *RightStart )
+          If RightPosition > Position
+            Break
+          EndIf
+          
+          PokeQ( *RightStart, RightPosition )
+          ShiftRightCount + 1
+      
+          *RightStart + SizeOf( Quad )
+          If *RightStart >= *RightEnd
+            Break
+          EndIf
+          
+        Wend
+        
+        If ShiftRightCount > 0
+          MoveGapInGapBufferRelative( *Buffer, ShiftRightCount )
+        EndIf
+
+      EndIf
+            
+    EndIf
+    
+  EndProcedure
+  
+  ;............................................................................
   ; As text is inserted or deleted, the end position of the marker list (relative
   ; to which everything on the right side of the buffer is stored) shifts and
   ; thus needs to be updated.
+  
   Procedure ShiftLastMarkerPosition( *List.TextMarkerList, Amount.q )
     
-    NotImplemented( "ShiftLastMarkerPosition" )
+    DebugAssert( *List <> #Null )
+    
+    *List\EndPosition + Amount
     
   EndProcedure
   
@@ -382,6 +428,7 @@ ProcedureUnit CanAddMarkersToList()
   Assert( GetPreviousMarkerPosition( @MarkerList, 10 ) = 0 )
   Assert( GetNextMarkerPosition( @MarkerList, 0 ) = -1 )
   Assert( GetPreviousMarkerPosition( @MarkerList, 0 ) = -1 )
+  Assert( GetMarkerPosition( @MarkerList, 0 ) = 0 )
   
   AddMarkerToTextMarkerList( @MarkerList, 10 )
   
@@ -389,7 +436,9 @@ ProcedureUnit CanAddMarkersToList()
   Assert( GetNextMarkerPosition( @MarkerList, 10 ) = -1 )
   Assert( GetPreviousMarkerPosition( @MarkerList, 10 ) = 0 )
   Assert( GetNextMarkerPosition( @MarkerList, 0 ) = 10 )
-  Assert( GetPreviousMarkerPosition( @MarkerList, 0 ) = -1 )  
+  Assert( GetPreviousMarkerPosition( @MarkerList, 0 ) = -1 )
+  Assert( GetMarkerPosition( @MarkerList, 0 ) = 0 )  
+  Assert( GetMarkerPosition( @MarkerList, 1 ) = 10 )
   
   AddMarkerToTextMarkerList( @MarkerList, 5 )
   
@@ -398,6 +447,10 @@ ProcedureUnit CanAddMarkersToList()
   Assert( GetPreviousMarkerPosition( @MarkerList, 10 ) = 5 )
   Assert( GetNextMarkerPosition( @MarkerList, 0 ) = 5 )
   Assert( GetPreviousMarkerPosition( @MarkerList, 0 ) = -1 )  
+  Assert( GetMarkerPosition( @MarkerList, 0 ) = 0 )  
+  Assert( GetMarkerPosition( @MarkerList, 1 ) = 5 )
+  ;;FIXME: This test flipflops. There must be a memory issue somewhere. Always seems to hit the last element after the gap has been repositioned.
+  Assert( GetMarkerPosition( @MarkerList, 2 ) = 10 )
   
   AddMarkerToTextMarkerList( @MarkerList, 15 )
   
@@ -406,6 +459,10 @@ ProcedureUnit CanAddMarkersToList()
   Assert( GetPreviousMarkerPosition( @MarkerList, 10 ) = 5 )
   Assert( GetNextMarkerPosition( @MarkerList, 0 ) = 5 )
   Assert( GetPreviousMarkerPosition( @MarkerList, 0 ) = -1 )
+  Assert( GetMarkerPosition( @MarkerList, 0 ) = 0 )
+  Assert( GetMarkerPosition( @MarkerList, 1 ) = 5 )
+  Assert( GetMarkerPosition( @MarkerList, 2 ) = 10 )
+  Assert( GetMarkerPosition( @MarkerList, 3 ) = 15 )
   
   ; Add *another* marker at position 10.
   AddMarkerToTextMarkerList( @MarkerList, 10 )
@@ -417,11 +474,16 @@ ProcedureUnit CanAddMarkersToList()
   Assert( GetPreviousMarkerPosition( @MarkerList, 10 ) = 5 )
   Assert( GetNextMarkerPosition( @MarkerList, 0 ) = 5 )
   Assert( GetPreviousMarkerPosition( @MarkerList, 0 ) = -1 )
+  Assert( GetMarkerPosition( @MarkerList, 0 ) = 0 )
+  Assert( GetMarkerPosition( @MarkerList, 1 ) = 5 )
+  Assert( GetMarkerPosition( @MarkerList, 2 ) = 10 )
+  Assert( GetMarkerPosition( @MarkerList, 3 ) = 10 )
+  Assert( GetMarkerPosition( @MarkerList, 4 ) = 15 )
   
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 170
-; FirstLine = 145
+; CursorPosition = 451
+; FirstLine = 421
 ; Folding = ---
 ; EnableXP

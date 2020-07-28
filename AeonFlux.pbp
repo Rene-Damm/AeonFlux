@@ -7,40 +7,40 @@
   <section name="data">
     <explorer view="C:\Program Files\PureBasic\Examples\" pattern="0"/>
     <log show="0"/>
-    <lastopen date="2020-07-20 19:25" user="Rene Damm" host="VORKRAFT"/>
+    <lastopen date="2020-07-27 18:35" user="Rene Damm" host="VORKRAFT"/>
   </section>
   <section name="files">
     <file name="AeonFlux.pb">
       <config load="1" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="fed9c325a0f4f75db4f76981c832d4d9"/>
+      <fingerprint md5="5293030d2b31736eb1ad1840eae618c5"/>
     </file>
     <file name="GapBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="525781e0a927212600899b5a0225e2b5"/>
+      <fingerprint md5="ea2fb1797dd2b1ce061d4871051bb633"/>
     </file>
     <file name="Shell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="c27a849096e13575723cde4ebd7fa017"/>
+      <fingerprint md5="98c0ffbaf8f6d60fb6da0fa3f6736718"/>
     </file>
     <file name="TextBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="37bbc5f3ebfc9f8b2226aa1041e9013f"/>
+      <fingerprint md5="fd71a2bde2d23f08a2c4bbc1fb8bb6aa"/>
     </file>
     <file name="TextEditor.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="1a6e9b00a90f06fdb878173706e37a0d"/>
+      <fingerprint md5="6ff16d04f48a95583177949d6dceb955"/>
     </file>
     <file name="TextEditorShell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="3625de425054b53285530e08dd77c727"/>
+      <fingerprint md5="d1be7524f2f3dd0956830fab292c2863"/>
     </file>
     <file name="TextMarker.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="cf45f5833248bf4de0ffd0a625ae900e"/>
+      <fingerprint md5="29472d4eee9f37e84b95fcfc63bf963e"/>
     </file>
     <file name="Utils.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="57d1a05dd135f02d1e5ceb7713caa13c"/>
+      <fingerprint md5="7f9dddddc8e327cb23ba20445f967ed1"/>
     </file>
   </section>
   <section name="targets">

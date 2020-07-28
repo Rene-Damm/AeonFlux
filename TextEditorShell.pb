@@ -104,7 +104,7 @@ Module TextEditorShell
     DebugAssert( *Editor <> #Null )
     
     PokeQ( *OutCommands, ?TextEditor_Commands )
-    ProcedureReturn 4
+    ProcedureReturn 6
     
   EndProcedure
   
@@ -123,12 +123,16 @@ Module TextEditorShell
         *Editor\Mode = #NormalMode
         
       Case #TextEditorMoveLeft
+        MoveCursorInTextEditor( *Editor\Editor, -1, 0 )
         
       Case #TextEditorMoveRight
+        MoveCursorInTextEditor( *Editor\Editor, 1, 0 )
         
       Case #TextEditorMoveUp
+        MoveCursorInTextEditor( *Editor\Editor, 0, -1 )
         
       Case #TextEditorMoveDown
+        MoveCursorInTextEditor( *Editor\Editor, 0, 1 )
         
     EndSelect
     
@@ -190,8 +194,52 @@ ProcedureUnit CanCreateTextEditorInShell()
 
 EndProcedureUnit
 
+;..............................................................................
+
+ProcedureUnit CanMoveTextEditorCursorInShell()
+
+  UseModule Shell
+  UseModule TextEditorShell
+  UseModule TextBuffer
+  UseModule TextEditor
+  
+  Define.Shell Shell
+  CreateShell( @Shell )
+  Define.IEditor *Editor = CreateEditor( @Shell, SizeOf( TextEditorShell ), @CreateTextEditorShell() )
+  Define.TextEditorShell *TextEditor = *Editor
+  
+  Assert( GetCursorLineNumberFromTextEditor( @*TextEditor\Editor ) = 1 )
+  Assert( GetCursorColumnNumberFromTextEditor( @*TextEditor\Editor ) = 1 )
+  
+  SendShellInput( @Shell, ~"itext\ntxet<ESC>" )
+  
+  Assert( GetCursorLineNumberFromTextEditor( @*TextEditor\Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @*TextEditor\Editor ) = 5 )
+  
+  SendShellInput( @Shell, "hh" )
+  
+  Assert( GetCursorLineNumberFromTextEditor( @*TextEditor\Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @*TextEditor\Editor ) = 3 )
+  
+  SendShellInput( @Shell, "k" )
+  
+  Assert( GetCursorLineNumberFromTextEditor( @*TextEditor\Editor ) = 1 )
+  Assert( GetCursorColumnNumberFromTextEditor( @*TextEditor\Editor ) = 3 )
+  
+  SendShellInput( @Shell, "j" )
+  
+  Assert( GetCursorLineNumberFromTextEditor( @*TextEditor\Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @*TextEditor\Editor ) = 3 )
+  
+  SendShellInput( @Shell, "l" )
+  
+  Assert( GetCursorLineNumberFromTextEditor( @*TextEditor\Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @*TextEditor\Editor ) = 4 )
+  
+EndProcedureUnit
+
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 191
-; FirstLine = 133
+; CursorPosition = 213
+; FirstLine = 175
 ; Folding = --
 ; EnableXP

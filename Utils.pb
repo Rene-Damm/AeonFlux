@@ -64,7 +64,11 @@ Module Utils
   ;............................................................................
 
   Procedure.q AlignToMultipleOf( Number.q, Alignment.q )
-    ProcedureReturn Number + ( Alignment - Number % Alignment )
+    Define.q Remainder = Number % Alignment
+    If Remainder = 0
+      ProcedureReturn Number
+    EndIf
+    ProcedureReturn Number + ( Alignment - Remainder )
   EndProcedure
   
   
@@ -228,7 +232,7 @@ Module Utils
 EndModule
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 213
-; FirstLine = 170
+; CursorPosition = 68
+; FirstLine = 33
 ; Folding = ---
 ; EnableXP

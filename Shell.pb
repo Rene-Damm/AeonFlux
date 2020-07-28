@@ -22,6 +22,7 @@ XIncludeFile "Utils.pb"
 ;;REVIEW: have a way to make commands contextual? (like <...> in Vim)
 ;;REVIEW: have a special "global" mode that is always active in addition to the specific current mode?
 
+;;TODO: add repeat counts for command executions
 
 ; Dispatches commands to a dynamic set of editors.
 ; The shell has no visual aspect; it is purely a way of mutating discrete chunks of state through commands.
@@ -471,6 +472,8 @@ Module Shell
           
           Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, SequenceLength / SizeOf( Character ) )
           Define.Binding *Binding = FindMapElement( *Mode\Bindings(), Buffer )
+          BufferLength = 0
+          
           ;;TODO: support stringed input (such as <C-m>i)
           If *Binding <> #Null
             If MapSize( *Binding\Bindings() ) > 0
@@ -478,7 +481,8 @@ Module Shell
             EndIf
             *Command = *Binding\Command
           EndIf
-          BufferLength = 0
+          
+          *StartPtr = *Ptr + SizeOf( Character )
           
         EndIf
         
@@ -488,11 +492,10 @@ Module Shell
         If *StartPtr <> *Ptr
           Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, ( *Ptr - *StartPtr ) / SizeOf( Character ) )
         EndIf
-        *StartPtr = *Ptr + SizeOf( Character )
         
       Else
         
-        ; Check if current character is mapped to command.
+        ; Check if current character is mapped to a command.
         Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *Ptr, 1 )
         Define.Binding *Binding = FindMapElement( *Mode\Bindings(), Buffer )
         BufferLength = 0
@@ -509,7 +512,7 @@ Module Shell
       EndIf
       
       ; Send input.
-      If BufferLength > 0 And ( *Command <> #Null Or Char = #NUL )
+      If BufferLength > 0
         *Editor\Editor\SendInput( Buffer )
         BufferLength = 0
       EndIf
@@ -517,6 +520,7 @@ Module Shell
       ; Execute command.
       If *Command <> #Null
         InternalExecuteShellCommand( *Editor, *Command )
+        *Mode = *Editor\CurrentMode ; May have changed.
       EndIf
         
       If Char = #NUL
@@ -718,7 +722,7 @@ EndProcedureUnit
 ProcedureUnit CanListAvailableCommands()
 
   UseModule Shell
-  UseModule TextEditor
+  UseModule TestEditor
   UseModule Utils
   
   Define.Shell Shell
@@ -820,7 +824,6 @@ ProcedureUnit CanSwitchEditorModesInShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 623
-; FirstLine = 593
+; CursorPosition = 24
 ; Folding = ----
 ; EnableXP

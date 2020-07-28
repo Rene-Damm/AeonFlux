@@ -48,6 +48,8 @@ Module GapBuffer
   
   Procedure EnsureLeftBufferCapacity( *Buffer.GapBuffer, CapacityInBytes.q )
     
+    DebugAssert( CapacityInBytes >= 0 )
+    
     CapacityInBytes = AlignToMultipleOf( CapacityInBytes, *Buffer\StrideInBytes )
     
     Define LeftSizeFilled = *Buffer\LeftBufferEnd - *Buffer\LeftBuffer
@@ -57,7 +59,12 @@ Module GapBuffer
       
       Define NewLeftBufferSize = AlignToMultipleOf( *Buffer\LeftBufferSizeInBytes + Max( 1024, CapacityInBytes ), 1024 )
       Define *NewLeftBuffer = AllocateMemory( NewLeftBufferSize, #PB_Memory_NoClear )
-      CopyMemory( *Buffer\LeftBuffer, *NewLeftBuffer, LeftSizeFilled )
+      If LeftSizeFilled > 0
+        CopyMemory( *Buffer\LeftBuffer, *NewLeftBuffer, LeftSizeFilled )
+      EndIf
+      If *Buffer\LeftBuffer <> #Null
+        FreeMemory( *Buffer\LeftBuffer )
+      EndIf
       *Buffer\LeftBufferSizeInBytes = NewLeftBufferSize
       *Buffer\LeftBuffer = *NewLeftBuffer
       *Buffer\LeftBufferEnd = *NewLeftBuffer + LeftSizeFilled
@@ -70,6 +77,8 @@ Module GapBuffer
   
   Procedure EnsureRightBufferCapacity( *Buffer.GapBuffer, CapacityInBytes.q )
     
+    DebugAssert( CapacityInBytes >= 0 )
+    
     CapacityInBytes = AlignToMultipleOf( CapacityInBytes, *Buffer\StrideInBytes )
     
     Define RightCapacity = *Buffer\RightBufferStart - *Buffer\RightBuffer
@@ -80,7 +89,12 @@ Module GapBuffer
       Define NewRightBufferSize = AlignToMultipleOf( *Buffer\RightBufferSizeInBytes + Max( 1024, CapacityInBytes ), 1024 )
       Define *NewRightBuffer = AllocateMemory( NewRightBufferSize, #PB_Memory_NoClear )
       Define *NewRightBufferStart = *NewRightBuffer + NewRightBufferSize - RightSizeFilled
-      CopyMemory( *Buffer\RightBufferStart, *NewRightBufferStart, RightSizeFilled )
+      If RightSizeFilled > 0
+        CopyMemory( *Buffer\RightBufferStart, *NewRightBufferStart, RightSizeFilled )
+      EndIf
+      If *Buffer\RightBuffer <> #Null
+        FreeMemory( *Buffer\RightBuffer )
+      EndIf
       *Buffer\RightBufferSizeInBytes = NewRightBufferSize
       *Buffer\RightBuffer = *NewRightBuffer
       *Buffer\RightBufferStart = *NewRightBufferStart
@@ -177,6 +191,7 @@ Module GapBuffer
   EndProcedure
   
   ;............................................................................
+  ; Returns a pointer to the element at the given index.
   
   Procedure.q GapBufferElementAt( *Buffer.GapBuffer, Position.q )
     
@@ -260,6 +275,8 @@ Module GapBuffer
     
     If Offset > 0
       
+      ; Gap moves to the right. Move bytes from right to left buffer.
+      
       DebugAssert( OffsetInBytes <= *Buffer\RightBuffer + *Buffer\RightBufferSizeInBytes - *Buffer\RightBufferStart )
       
       EnsureLeftBufferCapacity( *Buffer, OffsetInBytes )
@@ -269,6 +286,8 @@ Module GapBuffer
       *Buffer\RightBufferStart + OffsetInBytes
       
     ElseIf Offset < 0
+      
+      ; Gap moves to the left. Move bytes from left to right buffer.
       
       OffsetInBytes * -1
       
@@ -637,7 +656,7 @@ ProcedureUnit CanFindElementInOrderedGapBuffer()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 305
-; FirstLine = 285
+; CursorPosition = 60
+; FirstLine = 55
 ; Folding = ----
 ; EnableXP

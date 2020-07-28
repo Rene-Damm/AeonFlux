@@ -18,7 +18,7 @@ DeclareModule TextBuffer
   
   Structure TextBuffer
     Text.GapBuffer                ; The actual text *in UTF-8*.
-    LinePositions.TextMarkerList  ; Positions of line starts.
+    LinePositions.TextMarkerList  ; Positions of line *starts* (i.e. first character in line).
     
     ;;REVIEW: add storage location?
     ;;REVIEW: link all buffers into global list? (or optionally)
@@ -35,6 +35,8 @@ DeclareModule TextBuffer
   Declare   DestroyTextBuffer( *Buffer.TextBuffer )
   Declare.q GetTextBufferLength( *Buffer.TextBuffer )
   Declare.q GetTextBufferLineCount( *Buffer.TextBuffer )
+  Declare.q GetTextBufferLineStart( *Buffer.TextBuffer, LineNumber.i )
+  Declare.i GetTextBufferLineLength( *Buffer.TextBuffer, LineNumber.i )
   Declare   WriteUTF8IntoTextBuffer( *Buffer.TextBuffer, Position.q, *Text, Count.q )
   Declare   WriteCharacterIntoTextBuffer( *Buffer.TextBuffer, Position.q, Character.c )
   Declare   WriteStringIntoTextBuffer( *Buffer.TextBuffer, Position.q, Text.s, Length.i = -1 )
@@ -54,52 +56,82 @@ Module TextBuffer
   UseModule GapBuffer
   UseModule TextMarker
   UseModule Utils
-  
-  ;............................................................................
-  
-  Procedure RepositionGap( *Buffer.TextBuffer, NewPosition.q )
     
-    DebugAssert( NewPosition >= 0 )
-    
-    Define CurrentPosition.q = GetGapBufferPosition( *Buffer\Text )
-    If NewPosition > CurrentPosition
-      
-      ; Move gap in text buffer.
-      MoveGapInGapBufferRelative( *Buffer\Text, NewPosition - CurrentPosition )
-      
-      ; Move gap in line marker buffer.
-      
-    ElseIf NewPosition < CurrentPosition
-      
-    EndIf
-    
-  EndProcedure
-  
   ;............................................................................
   
   Procedure CreateTextBuffer( *Buffer.TextBuffer )
-    InitializeGapBuffer( *Buffer\Text, 1 )
-    InitializeTextMarkerList( *Buffer\LinePositions )
-    AddMarkerToTextMarkerList( *Buffer\LinePositions, 0 )
+    
+    InitializeGapBuffer( @*Buffer\Text, 1 ) ; We always store in UTF-8 even if in #PB_Unicode.
+    InitializeTextMarkerList( @*Buffer\LinePositions )
+    AddMarkerToTextMarkerList( @*Buffer\LinePositions, 0 )
+    
   EndProcedure
   
   ;............................................................................
   
   Procedure DestroyTextBuffer( *Buffer.TextBuffer )
-    FreeGapBuffer( *Buffer\Text )
-    DestroyTextMarkerList( *Buffer\LinePositions )
+    
+    FreeGapBuffer( @*Buffer\Text )
+    DestroyTextMarkerList( @*Buffer\LinePositions )
+    
   EndProcedure
   
   ;............................................................................
   
   Procedure.q GetTextBufferLength( *Buffer.TextBuffer )
-    ProcedureReturn GetGapBufferLength( *Buffer\Text )
+    
+    ProcedureReturn GetGapBufferLength( @*Buffer\Text )
+    
   EndProcedure
   
   ;............................................................................
   
   Procedure.q GetTextBufferLineCount( *Buffer.TextBuffer )
-    ProcedureReturn GetTextMarkerListLength( *Buffer\LinePositions )
+
+    DebugAssert( *Buffer <> #Null )
+    ProcedureReturn GetTextMarkerListLength( @*Buffer\LinePositions )
+    
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure.q GetTextBufferLineStart( *Buffer.TextBuffer, LineNumber.i )
+    
+    DebugAssert( *Buffer <> #Null )
+    DebugAssert( LineNumber > 0 )
+    DebugAssert( LineNumber <= GetTextBufferLineCount( *Buffer ) )
+    
+    ProcedureReturn GetMarkerPosition( @*Buffer\LinePositions, LineNumber - 1 )
+    
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure.i GetTextBufferLineLength( *Buffer.TextBuffer, LineNumber.i )
+    
+    DebugAssert( *Buffer <> #Null )
+    DebugAssert( LineNumber > 0 )
+    DebugAssert( LineNumber <= GetTextBufferLineCount( *Buffer ) )
+    
+    Define.q StartPositionOfLine = GetMarkerPosition( @*Buffer\LinePositions, LineNumber - 1 )
+    Define.q StartPositionOfNextLine
+    
+    If LineNumber = GetGapBufferLength( @*Buffer\LinePositions )
+      
+      ; Last line.
+      StartPositionOfNextLine = GetGapBufferLength( @*Buffer\Text ) + 1 ; Pretend there's a newline.
+      If StartPositionOfNextLine = 1
+        ProcedureReturn 0 ; Empty buffer.
+      EndIf
+      
+    Else
+      
+      StartPositionOfNextLine = GetMarkerPosition( @*Buffer\LinePositions, LineNumber )
+      
+    EndIf
+    
+    ProcedureReturn StartPositionOfNextLine - StartPositionOfLine - 1 ; Don't include #LF in count.
+    
   EndProcedure
   
   ;............................................................................
@@ -107,22 +139,30 @@ Module TextBuffer
   Procedure WriteUTF8IntoTextBuffer( *Buffer.TextBuffer, Position.q, *Text, Count.q )
     
     DebugAssert( *Text <> #Null )
+    DebugAssert( Position >= 0 )
     DebugAssert( Count >= 0 )
     
     ; Reposition gap, if necessary.
-    Define CurrentPosition.q = GetGapBufferPosition( *Buffer\Text )
+    Define CurrentPosition.q = GetGapBufferPosition( @*Buffer\Text )
     If CurrentPosition <> Position
-      MoveGapInGapBufferAbsolute( *Buffer\Text, Position )
+      MoveGapInGapBufferAbsolute( @*Buffer\Text, Position )
+      ; Need to reposition linemarker gap, too, to ensure that we can insert new
+      ; text without having to update any positions to the right of the current position.
+      PositionTextMarkerListGap( @*Buffer\LinePositions, Position )
     EndIf
     
     ; Add text to buffer.
-    WriteIntoGapBuffer( *Buffer\Text, *Text, Count )
+    WriteIntoGapBuffer( @*Buffer\Text, *Text, Count )
+    
+    ; Account for text we added in line marker positions.
+    ShiftLastMarkerPosition( @*Buffer\LinePositions, Count )
     
     ; Add line markers, if necessary.
     For I = 0 To Count - 1
       Define.b Char = PeekB( *Text + I )
       If Char = #LF
-        AddMarkerToTextMarkerList( *Buffer\LinePositions, Position + I )
+        ; Add line marker pointing to first character *after* newline.
+        AddMarkerToTextMarkerList( @*Buffer\LinePositions, Position + I + 1 )
       EndIf
     Next
     
@@ -133,6 +173,7 @@ Module TextBuffer
   Procedure WriteCharacterIntoTextBuffer( *Buffer.TextBuffer, Position.q, Character.c )
     
     DebugAssert( *Buffer <> #Null )
+    DebugAssert( Position >= 0 )
     
     CompilerIf #PB_Unicode
       
@@ -201,7 +242,7 @@ Module TextBuffer
       
       ;;OPTIMIZE: This can be done much faster
       Define *TempBuffer = AllocateMemory( Count )
-      ReadFromGapBuffer( *Buffer\Text, *TempBuffer, Position, Count )
+      ReadFromGapBuffer( @*Buffer\Text, *TempBuffer, Position, Count )
       Define.s Result = PeekS( *TempBuffer, Count, #PB_UTF8 )
       FreeMemory( *TempBuffer )
       ProcedureReturn Result
@@ -209,7 +250,7 @@ Module TextBuffer
     CompilerElse
       
       Define.s Result = Space( Count )
-      ReadFromGapBuffer( *Buffer\Text, @Result, Position, Count )
+      ReadFromGapBuffer( @*Buffer\Text, @Result, Position, Count )
       ProcedureReturn Result
       
     CompilerEndIf
@@ -231,30 +272,50 @@ ProcedureUnit CanWriteIntoTextBuffer()
   
   Assert( GetTextBufferLength( @Buffer ) = 0 )
   Assert( GetTextBufferLineCount( @Buffer ) = 1 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
   Assert( ReadStringFromTextBuffer( @Buffer ) = "" )
   
   WriteStringIntoTextBuffer( @Buffer, 0, "First" )
   
   Assert( GetTextBufferLength( @Buffer ) = 5 )
   Assert( GetTextBufferLineCount( @Buffer ) = 1 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 5 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
   Assert( ReadStringFromTextBuffer( @Buffer ) = "First" )
   
   WriteStringIntoTextBuffer( @Buffer, 5, ~"\nSecond" )
   
   Assert( GetTextBufferLength( @Buffer ) = 12 )
   Assert( GetTextBufferLineCount( @Buffer ) = 2 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 5 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 6 )
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"First\nSecond" )
   
   WriteStringIntoTextBuffer( @Buffer, 12, ~"\n" )
   
   Assert( GetTextBufferLength( @Buffer ) = 13 )
   Assert( GetTextBufferLineCount( @Buffer ) = 3 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 5 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 6 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 13 )
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"First\nSecond\n" )
   
   WriteCharacterIntoTextBuffer( @Buffer, 1, '\' )
-  
+    
   Assert( GetTextBufferLength( @Buffer ) = 14 )
   Assert( GetTextBufferLineCount( @Buffer ) = 3 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 7 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 14 )
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"F\\irst\nSecond\n" )
   
   DestroyTextBuffer( @Buffer )
@@ -264,7 +325,7 @@ ProcedureUnit CanWriteIntoTextBuffer()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 123
-; FirstLine = 119
-; Folding = --
+; CursorPosition = 263
+; FirstLine = 249
+; Folding = ---
 ; EnableXP

@@ -38,9 +38,9 @@ DeclareModule TextEditor
   Declare   InsertStringIntoTextEditor( *Editor.TextEditor, Text.s )
   Declare.q GetCursorLineNumberFromTextEditor( *Editor.TextEditor )
   Declare.q GetCursorColumnNumberFromTextEditor( *Editor.TextEditor )
+  Declare   MoveCursorInTextEditor( *Editor.TextEditor, NumColumns.i, NumLines.i = 0, StopAtLineBoundaries.i = #True )
   
   CompilerIf #False
-  Declare   MoveTextCursor( *Editor.TextEditor, NumColumns.i, NumLines.i = 0, StopAtLineBoundaries.i = #True )
   Declare   BeginTextSelection( *Editor.TextEditor )
   Declare   EndTextSelection( *Editor.TextEditor)
   Declare   BeginTextEdit( *Editor.TextEditor )
@@ -54,6 +54,7 @@ EndDeclareModule
 Module TextEditor
   
   UseModule TextBuffer
+  UseModule TextMarker
   UseModule Utils
   
   ;............................................................................
@@ -83,12 +84,12 @@ Module TextEditor
     
     ; Find column number we will end up at.
     Define.q Position
-    Define.q Column = Count + 1
+    Define.q Column = *Editor\CursorColumn + Count
     Define.i HasMultipleLines = #False
     Define.q Position = Count - 1
     Repeat
       If PeekB( *Ptr + Position ) = #LF
-        Column - ( Position + 1 )
+        Column = Count - Position
         HasMultipleLines = #True
         Break
       EndIf
@@ -178,6 +179,54 @@ Module TextEditor
     
   EndProcedure
   
+  ;............................................................................
+  
+  Procedure MoveCursorInTextEditor( *Editor.TextEditor, NumColumns.i, NumLines.i = 0, StopAtLineBoundaries.i = #True )
+    
+    DebugAssert( *Editor <> #Null )
+    
+    Define.q NewLineNumber
+    Define.q NewColumnNumber
+    Define.q NewPosition
+    
+    ; Find starting position and length of the new line.
+    ;;OPTIMIZE: We're looking up the position of NewLineNumber twice here
+    NewLineNumber = *Editor\CursorLine + NumLines
+    If NewLineNumber <= 0
+      NewLineNumber = 1
+    Else
+      Define.q LineCount = GetTextBufferLineCount( *Editor\Buffer )
+      If NewLineNumber > LineCount
+        NewLineNumber = LineCount
+      EndIf
+    EndIf
+    
+    Define.q NewLineStart = GetTextBufferLineStart( *Editor\Buffer, NewLineNumber )
+    Define.q NewLineLength = GetTextBufferLineLength( *Editor\Buffer, NewLineNumber )
+    
+    ; Determine new column number.
+    NewColumnNumber = *Editor\CursorColumn + NumColumns
+    If NewColumnNumber <= 0
+      If Not StopAtLineBoundaries
+        NotImplemented( "Moving out of line to left" )
+      EndIf
+      NewColumnNumber = 1
+    ElseIf NewColumnNumber > NewLineLength
+      If Not StopAtLineBoundaries
+        NotImplemented( "Moving out of line to right" )
+      EndIf
+      NewColumnNumber = NewLineLength + 1
+    EndIf
+    
+    ; Determine new position.
+    NewPosition = NewLineStart + ( NewColumnNumber - 1 )
+    
+    *Editor\CursorColumn = NewColumnNumber
+    *Editor\CursorLine = NewLineNumber
+    *Editor\CursorPosition = NewPosition
+    
+  EndProcedure
+  
 EndModule
 
 ;..............................................................................
@@ -216,10 +265,34 @@ ProcedureUnit CanInsertTextThroughTextEditor()
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 4 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
   
+  MoveCursorInTextEditor( @Editor, 0, -1 )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 3 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
+  
+  MoveCursorInTextEditor( @Editor, 0, -1 )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
+  
+  MoveCursorInTextEditor( @Editor, 2 )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 3 )
+  
+  InsertStringIntoTextEditor( @Editor, "blub" )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoblubobar\n\n" )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 7 )
+  
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 212
-; FirstLine = 161
+; CursorPosition = 289
+; FirstLine = 231
 ; Folding = --
 ; EnableXP

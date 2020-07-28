@@ -18,6 +18,8 @@ XIncludeFile "TextEditor.pb"        ; Cursors, selections, undo.
 XIncludeFile "Shell.pb"             ; Modes, commands.
 XIncludeFile "TextEditorShell.pb"   ; Text editing commands.
 
+; NOTE: Unit tests can be debugged by simply invoking them here.
+
 ;TextRenderer (dirty rects and render buffers)
 ;Editor (Shell?) (modes, command maps, macros, )    *all* edit operations must be representable as text strings
 ;Configuration
@@ -436,7 +438,7 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 17
+; CursorPosition = 20
 ; Folding = --
 ; EnableXP
 ; HideErrorLog
