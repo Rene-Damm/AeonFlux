@@ -27,6 +27,7 @@
   
   Declare.q Min                       ( A.q, B.q )
   Declare.q Max                       ( A.q, B.q )
+  Declare.q AbsQ                      ( Number.q )
   Declare.q AlignToMultipleOf         ( Number.q, Alignment.q )
   Declare.i CompareFnQ                ( *Left, *Right )
   Declare.i StartsWith                ( Prefix.s, String.s )
@@ -59,6 +60,18 @@ Module Utils
       ProcedureReturn B
     EndIf
     ProcedureReturn A
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure.q AbsQ( Number.q )
+    
+    If Number >= 0
+      ProcedureReturn Number
+    EndIf
+    
+    ProcedureReturn Number * -1
+    
   EndProcedure
   
   ;............................................................................
@@ -232,7 +245,7 @@ Module Utils
 EndModule
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 68
-; FirstLine = 33
+; CursorPosition = 72
+; FirstLine = 10
 ; Folding = ---
 ; EnableXP

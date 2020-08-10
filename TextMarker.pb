@@ -45,13 +45,18 @@ DeclareModule TextMarker
   
   Declare   InitializeTextMarkerList( *List.TextMarkerList )
   Declare   DestroyTextMarkerList( *List.TextMarkerList )
+  
   Declare.q GetTextMarkerListLength( *List.TextMarkerList )
   Declare   AddMarkerToTextMarkerList( *List.TextMarkerList, Position.q )
+  Declare   PositionTextMarkerListGap( *List.TextMarkerList, Position.q )
+  Declare   ShiftLastMarkerPosition( *List.TextMarkerList, Amount.q )
+  
   Declare.q GetMarkerPosition( *List.TextMarkerList, Index.q )
   Declare.q GetNextMarkerPosition( *List.TextMarkerList, Position.q )
   Declare.q GetPreviousMarkerPosition( *List.TextMarkerList, Position.q )
-  Declare   PositionTextMarkerListGap( *List.TextMarkerList, Position.q )
-  Declare   ShiftLastMarkerPosition( *List.TextMarkerList, Amount.q )
+  Declare.q GetMarkerPositionLeftOfGap( *List.TextMarkerList )
+  Declare.q GetMarkerPositionRightOfGap( *List.TextMarkerList )
+  
   Declare.s TextMarkerListDebugString( *List.TextMarkerList )
   
 EndDeclareModule
@@ -63,22 +68,30 @@ Module TextMarker
   
   ;............................................................................
   
-  Procedure.q GetPositionLeftOfGap( *List.TextMarkerList )
+  Procedure.q GetMarkerPositionLeftOfGap( *List.TextMarkerList )
+    
+    DebugAssert( *List <> #Null )
+    
     Define.GapBuffer *Buffer = @*List\Buffer
     If *Buffer\LeftBufferEnd > *Buffer\LeftBuffer
       ProcedureReturn PeekQ( *Buffer\LeftBufferEnd - SizeOf( Quad ) )
     EndIf
     ProcedureReturn 0
+    
   EndProcedure
   
   ;............................................................................
   
-  Procedure.q GetPositionRightOfGap( *List.TextMarkerList )
+  Procedure.q GetMarkerPositionRightOfGap( *List.TextMarkerList )
+    
+    DebugAssert( *List <> #Null )
+    
     Define.GapBuffer *Buffer = @*List\Buffer
-    If *Buffer\RightBufferStart < *Buffer\RightBuffer
+    If *Buffer\RightBufferStart < ( *Buffer\RightBuffer + *Buffer\RightBufferSizeInBytes )
       ProcedureReturn *List\EndPosition - PeekQ( *Buffer\RightBufferStart )
     EndIf
     ProcedureReturn #MAX_QUAD
+    
   EndProcedure
 
   ;............................................................................
@@ -483,7 +496,7 @@ ProcedureUnit CanAddMarkersToList()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 451
-; FirstLine = 421
+; CursorPosition = 89
+; FirstLine = 60
 ; Folding = ---
 ; EnableXP

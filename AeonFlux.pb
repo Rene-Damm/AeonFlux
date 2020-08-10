@@ -385,6 +385,10 @@ Repeat
   
 Until Event = #PB_Event_CloseWindow
 
+;[X] Can delete range in TextBuffer
+;[ ] Can backspace in editor shell
+;[ ] Refactor TextBuffer to have a write-head
+
 
 ;[X] TODO Render cursor (block)
 ;[X] TODO Move cursor with H and L (vertical movement will have to wait until we have multiple lines)
@@ -438,7 +442,7 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 20
+; CursorPosition = 21
 ; Folding = --
 ; EnableXP
 ; HideErrorLog

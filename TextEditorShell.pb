@@ -184,11 +184,24 @@ ProcedureUnit CanCreateTextEditorInShell()
   Assert( *Editor\GetMode() = "normal" )
   Assert( GetCurrentEditor( @Shell ) = *Editor )
   
+  ; Insert text.
   SendShellInput( @Shell, "itext" )
   
   Assert( *Editor\GetMode() = "insert" )
   Assert( GetTextBufferLength( *TextEditor\Buffer ) = 4 )
   Assert( GetTextBufferLineCount( *TextEditor\Buffer ) = 1 )
+  
+  CompilerIf #False ;;DEV
+  ;;TODO: check text
+  
+  ; Delete text.
+  SendShellInput( @Shell, "<BS><BS>" )
+  
+  Assert( *Editor\GetMode() = "insert" )
+  Assert( GetTextBufferLength( *TextEditor\Buffer ) = 2 )
+  Assert( GetTextBufferLineCount( *TextEditor\Buffer ) = 1 )
+  
+  CompilerEndIf
   
   DestroyShell( @Shell )  
 
@@ -239,7 +252,7 @@ ProcedureUnit CanMoveTextEditorCursorInShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 213
-; FirstLine = 175
+; CursorPosition = 203
+; FirstLine = 162
 ; Folding = --
 ; EnableXP

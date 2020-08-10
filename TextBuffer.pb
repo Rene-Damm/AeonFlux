@@ -17,6 +17,7 @@ DeclareModule TextBuffer
   ;............................................................................
   
   Structure TextBuffer
+    
     Text.GapBuffer                ; The actual text *in UTF-8*.
     LinePositions.TextMarkerList  ; Positions of line *starts* (i.e. first character in line).
     
@@ -27,22 +28,28 @@ DeclareModule TextBuffer
     ;have list of jobs tied to text buffer
     ;N reader jobs, max 1 writer job
     ;mutating buffer requires completing or canceling reader jobs
+    
   EndStructure
 
   ;............................................................................
 
   Declare   CreateTextBuffer( *Buffer.TextBuffer )
   Declare   DestroyTextBuffer( *Buffer.TextBuffer )
+  
   Declare.q GetTextBufferLength( *Buffer.TextBuffer )
   Declare.q GetTextBufferLineCount( *Buffer.TextBuffer )
   Declare.q GetTextBufferLineStart( *Buffer.TextBuffer, LineNumber.i )
   Declare.i GetTextBufferLineLength( *Buffer.TextBuffer, LineNumber.i )
+  
+  ;;REVIEW: should this rather have a write-head, too? would probably save us a bunch of checks whether we're at the right position
+  
   Declare   WriteUTF8IntoTextBuffer( *Buffer.TextBuffer, Position.q, *Text, Count.q )
   Declare   WriteCharacterIntoTextBuffer( *Buffer.TextBuffer, Position.q, Character.c )
   Declare   WriteStringIntoTextBuffer( *Buffer.TextBuffer, Position.q, Text.s, Length.i = -1 )
   Declare.s ReadStringFromTextBuffer( *Buffer.TextBuffer, Position.q = 0, Count.q = -1 )
-  CompilerIf #False
   Declare   DeleteRangeFromTextBuffer( *Buffer.TextBuffer, Position.q, Count.q )
+  
+  CompilerIf #False
   Declare   ReplaceUTF8InTextBuffer( *Buffer.TextBuffer, ... )
   Declare.q GetCurrentPositionInTextBuffer( *Buffer.TextBuffer )
   Declare.q ReadFromTextBuffer( *Buffer.TextBuffer, *Position.q, *Text, Count.q )
@@ -257,6 +264,35 @@ Module TextBuffer
     
   EndProcedure
   
+  ;............................................................................
+  
+  Procedure DeleteRangeFromTextBuffer( *Buffer.TextBuffer, Position.q, Count.q )
+    
+    DebugAssert( *Buffer <> #Null )
+    DebugAssert( Position >= 0 )
+    DebugAssert( Count >= 0 ) ; ATM negative range not implemented.
+    
+    ; Reposition gap, if necessary.
+    Define CurrentPosition.q = GetGapBufferPosition( @*Buffer\Text )
+    If CurrentPosition <> Position
+      MoveGapInGapBufferAbsolute( @*Buffer\Text, Position )
+      PositionTextMarkerListGap( @*Buffer\LinePositions, Position )
+    EndIf
+    
+    ; Delete line markers, if necessary.
+    Define.q EndPosition = Position + Count
+    While GetMarkerPositionRightOfGap( @*Buffer\LinePositions ) < EndPosition
+      EraseFromGapBuffer( @*Buffer\LinePositions, 1 )
+    Wend
+    
+    ; Remove text.
+    EraseFromGapBuffer( @*Buffer\Text, Count )
+    
+    ; Update/remove line markers.
+    ShiftLastMarkerPosition( @*Buffer\LinePositions, - Count )
+    
+  EndProcedure
+  
 EndModule
 
 ;..............................................................................
@@ -324,8 +360,41 @@ ProcedureUnit CanWriteIntoTextBuffer()
   
 EndProcedureUnit
 
+;..............................................................................
+
+ProcedureUnit CanDeleteFromTextBuffer()
+
+  UseModule TextBuffer
+
+  Define.TextBuffer Buffer
+  CreateTextBuffer( @Buffer )
+  WriteStringIntoTextBuffer( @Buffer, 0, ~"Foo\nBarb" )
+  
+  DeleteRangeFromTextBuffer( @Buffer, 2, 1 )
+  
+  Assert( GetTextBufferLength( @Buffer ) = 7 )
+  Assert( GetTextBufferLineCount( @Buffer ) = 2 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 2 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 3 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 4 )
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Fo\nBarb" )
+  
+  DeleteRangeFromTextBuffer( @Buffer, 2, 2 )
+  
+  Assert( GetTextBufferLength( @Buffer ) = 5 )
+  Assert( GetTextBufferLineCount( @Buffer ) = 1 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 5 )
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Foarb" )
+  
+  DestroyTextBuffer( @Buffer )
+
+EndProcedureUnit
+
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 263
-; FirstLine = 249
+; CursorPosition = 385
+; FirstLine = 331
 ; Folding = ---
+; Markers = 268,283
 ; EnableXP

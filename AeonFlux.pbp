@@ -7,47 +7,47 @@
   <section name="data">
     <explorer view="C:\Program Files\PureBasic\Examples\" pattern="0"/>
     <log show="0"/>
-    <lastopen date="2020-07-27 18:35" user="Rene Damm" host="VORKRAFT"/>
+    <lastopen date="2020-08-10 11:12" user="Rene Damm" host="VORKRAFT"/>
   </section>
   <section name="files">
     <file name="AeonFlux.pb">
       <config load="1" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="5293030d2b31736eb1ad1840eae618c5"/>
+      <fingerprint md5="4cb58afb6169f2ca55820ac81b263a8e"/>
     </file>
     <file name="GapBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="ea2fb1797dd2b1ce061d4871051bb633"/>
+      <fingerprint md5="92ee29d4da979fc9a02e488e6addb217"/>
     </file>
     <file name="Shell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="98c0ffbaf8f6d60fb6da0fa3f6736718"/>
+      <fingerprint md5="fa88cdd530723824829e856975200035"/>
     </file>
     <file name="TextBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="fd71a2bde2d23f08a2c4bbc1fb8bb6aa"/>
+      <fingerprint md5="c648c71a26a95395889297cc9a746c41"/>
     </file>
     <file name="TextEditor.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="6ff16d04f48a95583177949d6dceb955"/>
+      <fingerprint md5="7cef46da23618895855d97836c584db4"/>
     </file>
     <file name="TextEditorShell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="d1be7524f2f3dd0956830fab292c2863"/>
+      <fingerprint md5="f8f0dcfc583f5959b9af50a53046780c"/>
     </file>
     <file name="TextMarker.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="29472d4eee9f37e84b95fcfc63bf963e"/>
+      <fingerprint md5="877a6cc25aac0e9aae8ec933b2c157f5"/>
     </file>
     <file name="Utils.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="7f9dddddc8e327cb23ba20445f967ed1"/>
+      <fingerprint md5="3dd8f2691b00e6dd26e0b0a83c5175fa"/>
     </file>
   </section>
   <section name="targets">
     <target name="Default Target" enabled="1" default="1">
       <inputfile value="AeonFlux.pb"/>
       <outputfile value=""/>
-      <options xpskin="1" dpiaware="1" debug="1"/>
+      <options xpskin="1" debug="1"/>
     </target>
   </section>
 </project>

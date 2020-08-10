@@ -22,29 +22,43 @@ DeclareModule TextEditor
   ;............................................................................
 
   Structure TextEditor
+    
     *Buffer.TextBuffer ;;REVIEW: should this be *owned* by the text editor?
     CursorPosition.q
     CursorColumn.q
     CursorLine.q
     SelectedColumns.i       ; Num chars selected horizontally from cursor position; can be negative.
     SelectedLines.i         ; Num lines selected vertically from cursor position; can be negative.
+    
   EndStructure
 
   ;............................................................................
 
   Declare   CreateTextEditor( *Editor.TextEditor, *Buffer.TextBuffer )
-  Declare   InsertUTF8IntoTextEditor( *Editor.TextEditor, *Ptr, Count.q )
-  Declare   InsertCharacterIntoTextEditor( *Editor.TextEditor, Character.c )
-  Declare   InsertStringIntoTextEditor( *Editor.TextEditor, Text.s )
+  
+  ; Cursor
+  Declare.q GetCursorPositionFromTextEditor( *Editor.TextEditor )
   Declare.q GetCursorLineNumberFromTextEditor( *Editor.TextEditor )
   Declare.q GetCursorColumnNumberFromTextEditor( *Editor.TextEditor )
   Declare   MoveCursorInTextEditor( *Editor.TextEditor, NumColumns.i, NumLines.i = 0, StopAtLineBoundaries.i = #True )
   
+  ; Insertions
+  Declare   InsertUTF8IntoTextEditor( *Editor.TextEditor, *Ptr, Count.q )
+  Declare   InsertCharacterIntoTextEditor( *Editor.TextEditor, Character.c )
+  Declare   InsertStringIntoTextEditor( *Editor.TextEditor, Text.s )
+  
+  ; Deletions
+  Declare   DeleteCharactersInTextEditor( *Editor.TextEditor, Count.q )
+  
   CompilerIf #False
+  Declare   DeleteSelectionInTextEditor( *Editor.TextEditor )
+    
+  ; Selections
   Declare   BeginTextSelection( *Editor.TextEditor )
   Declare   EndTextSelection( *Editor.TextEditor)
   Declare   BeginTextEdit( *Editor.TextEditor )
   Declare   EndTextEdit( *Editor.TextEditor )
+  
   Declare.s GetFullTextFromTextEditorAsString( *Editor.TextEditor )
   Declare.s GetTextSelectedInTextEditorAsString( *Editor.TextEditor )
   CompilerEndIf
@@ -161,6 +175,16 @@ Module TextEditor
   
   ;............................................................................
   
+  Procedure.q GetCursorPositionFromTextEditor( *Editor.TextEditor )
+    
+    DebugAssert( *Editor <> #Null )
+    
+    ProcedureReturn *Editor\CursorPosition
+
+  EndProcedure
+  
+  ;............................................................................
+  
   Procedure.q GetCursorLineNumberFromTextEditor( *Editor.TextEditor )
     
     DebugAssert( *Editor <> #Null )
@@ -208,14 +232,24 @@ Module TextEditor
     NewColumnNumber = *Editor\CursorColumn + NumColumns
     If NewColumnNumber <= 0
       If Not StopAtLineBoundaries
-        NotImplemented( "Moving out of line to left" )
+        While NewColumnNumber <= 0
+          
+          NewLineNumber - 1
+          NewLineStart = GetTextBufferLineStart( *Editor\Buffer, NewLineNumber )
+          NewLineLength = GetTextBufferLineLength( *Editor\Buffer, NewLineNumber )
+          
+          NewColumnNumber + NewLineLength + 1
+          
+        Wend
+      Else
+        NewColumnNumber = 1
       EndIf
-      NewColumnNumber = 1
     ElseIf NewColumnNumber > NewLineLength
       If Not StopAtLineBoundaries
         NotImplemented( "Moving out of line to right" )
+      Else
+        NewColumnNumber = NewLineLength + 1
       EndIf
-      NewColumnNumber = NewLineLength + 1
     EndIf
     
     ; Determine new position.
@@ -227,11 +261,27 @@ Module TextEditor
     
   EndProcedure
   
+  ;............................................................................
+  
+  Procedure DeleteCharactersInTextEditor( *Editor.TextEditor, Count.q )
+    
+    DebugAssert( *Editor <> #Null )
+    
+    If Count < 0
+      DebugAssert( *Editor\CursorPosition + Count >= 0 )
+      MoveCursorInTextEditor( *Editor, Count, 0, #False )
+      Count = AbsQ( Count )
+    EndIf
+    
+    DeleteRangeFromTextBuffer( *Editor\Buffer, *Editor\CursorPosition, Count )
+    
+  EndProcedure
+  
 EndModule
 
 ;..............................................................................
 
-ProcedureUnit CanInsertTextThroughTextEditor()
+ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
 
   UseModule TextEditor
   UseModule TextBuffer
@@ -244,55 +294,84 @@ ProcedureUnit CanInsertTextThroughTextEditor()
   CreateTextEditor( @Editor, @Buffer )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = "" )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 0 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 1 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
   
   InsertStringIntoTextEditor( @Editor, "Test" )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = "Test" )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 4 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 1 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 5 )
   
   InsertStringIntoTextEditor( @Editor, ~"\nFoobar\n" )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n" )
+  Assert( GetCursorPositionFromTextEditor(  @Editor ) = 12 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 3 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
   
   InsertCharacterIntoTextEditor( @Editor, #LF )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 13 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 4 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
   
   MoveCursorInTextEditor( @Editor, 0, -1 )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 12 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 3 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
   
   MoveCursorInTextEditor( @Editor, 0, -1 )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 5 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
   
   MoveCursorInTextEditor( @Editor, 2 )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 7 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 3 )
   
   InsertStringIntoTextEditor( @Editor, "blub" )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoblubobar\n\n" )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 11 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 7 )
+  
+  DeleteCharactersInTextEditor( @Editor, 2 )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoblubar\n\n" )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 11 )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 7 )
+  
+  DeleteCharactersInTextEditor( @Editor, -3 )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFobar\n\n" )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 8 )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 4 )
+  
+  DeleteCharactersInTextEditor( @Editor, -4 )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Testar\n\n" )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 4 )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 1 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 5 )
   
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 289
-; FirstLine = 231
+; CursorPosition = 365
+; FirstLine = 310
 ; Folding = --
 ; EnableXP
