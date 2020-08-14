@@ -54,6 +54,9 @@ Module TextEditorShell
     #TextEditorMoveUp
     #TextEditorMoveDown
     
+    ; Deletion commands.
+    #TextEditorDeleteLeft
+    
   EndEnumeration
   
   ;............................................................................
@@ -104,7 +107,7 @@ Module TextEditorShell
     DebugAssert( *Editor <> #Null )
     
     PokeQ( *OutCommands, ?TextEditor_Commands )
-    ProcedureReturn 6
+    ProcedureReturn 7
     
   EndProcedure
   
@@ -123,16 +126,19 @@ Module TextEditorShell
         *Editor\Mode = #NormalMode
         
       Case #TextEditorMoveLeft
-        MoveCursorInTextEditor( *Editor\Editor, -1, 0 )
+        MoveCursorInTextEditor( @*Editor\Editor, -1, 0 )
         
       Case #TextEditorMoveRight
-        MoveCursorInTextEditor( *Editor\Editor, 1, 0 )
+        MoveCursorInTextEditor( @*Editor\Editor, 1, 0 )
         
       Case #TextEditorMoveUp
-        MoveCursorInTextEditor( *Editor\Editor, 0, -1 )
+        MoveCursorInTextEditor( @*Editor\Editor, 0, -1 )
         
       Case #TextEditorMoveDown
-        MoveCursorInTextEditor( *Editor\Editor, 0, 1 )
+        MoveCursorInTextEditor( @*Editor\Editor, 0, 1 )
+        
+      Case #TextEditorDeleteLeft
+        DeleteCharactersInTextEditor( @*Editor\Editor, -1 )
         
     EndSelect
     
@@ -161,6 +167,7 @@ Module TextEditorShell
       CommandData( #TextEditorMoveRight, "move_right", "normal", "l", 0 )
       CommandData( #TextEditorMoveUp, "move_up", "normal", "k", 0 )
       CommandData( #TextEditorMoveDown, "move_down", "normal", "j", 0 )
+      CommandData( #TextEditorDeleteLeft, "delete_left", "insert", "<BS>", 0 )
     
   EndDataSection
   
@@ -190,9 +197,7 @@ ProcedureUnit CanCreateTextEditorInShell()
   Assert( *Editor\GetMode() = "insert" )
   Assert( GetTextBufferLength( *TextEditor\Buffer ) = 4 )
   Assert( GetTextBufferLineCount( *TextEditor\Buffer ) = 1 )
-  
-  CompilerIf #False ;;DEV
-  ;;TODO: check text
+  Assert( ReadStringFromTextBuffer( *TextEditor\Buffer ) = "text" )
   
   ; Delete text.
   SendShellInput( @Shell, "<BS><BS>" )
@@ -200,8 +205,7 @@ ProcedureUnit CanCreateTextEditorInShell()
   Assert( *Editor\GetMode() = "insert" )
   Assert( GetTextBufferLength( *TextEditor\Buffer ) = 2 )
   Assert( GetTextBufferLineCount( *TextEditor\Buffer ) = 1 )
-  
-  CompilerEndIf
+  Assert( ReadStringFromTextBuffer( *TextEditor\Buffer ) = "te" )
   
   DestroyShell( @Shell )  
 
@@ -252,7 +256,7 @@ ProcedureUnit CanMoveTextEditorCursorInShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 203
-; FirstLine = 162
+; CursorPosition = 109
+; FirstLine = 98
 ; Folding = --
 ; EnableXP

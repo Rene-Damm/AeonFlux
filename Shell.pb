@@ -103,7 +103,7 @@ DeclareModule Shell
   EndStructure
     
   Structure EditorRecord
-    Editor.IEditor
+    *Editor.IEditor
     *EditorType.EditorType
     *CurrentMode.ModeRecord
   EndStructure
@@ -190,8 +190,7 @@ Module Shell
     
     DebugAssert( *Shell <> #Null )
     DebugAssert( SizeInBytes > 0 )
-    DebugAssert( SizeInBytes % 4 = 0 )
-    DebugAssert( CreateFn <> #Null )
+    DebugAssert( *CreateFn <> #Null )
     
     ; Allocate.
     Define.IEditor *Editor = AllocateMemory( SizeInBytes )
@@ -824,6 +823,7 @@ ProcedureUnit CanSwitchEditorModesInShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 24
+; CursorPosition = 192
+; FirstLine = 160
 ; Folding = ----
 ; EnableXP
