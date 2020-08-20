@@ -41,12 +41,11 @@ DeclareModule TextBuffer
   Declare.q GetTextBufferLineStart( *Buffer.TextBuffer, LineNumber.i )
   Declare.i GetTextBufferLineLength( *Buffer.TextBuffer, LineNumber.i )
   
-  ;;REVIEW: should this rather have a write-head, too? would probably save us a bunch of checks whether we're at the right position
-  
   Declare   WriteUTF8IntoTextBuffer( *Buffer.TextBuffer, Position.q, *Text, Count.q )
   Declare   WriteCharacterIntoTextBuffer( *Buffer.TextBuffer, Position.q, Character.c )
   Declare   WriteStringIntoTextBuffer( *Buffer.TextBuffer, Position.q, Text.s, Length.i = -1 )
   Declare.s ReadStringFromTextBuffer( *Buffer.TextBuffer, Position.q = 0, Count.q = -1 )
+  Declare.s ReadLineFromTextBuffer( *Buffer.TextBuffer, LineNumber.i )
   Declare   DeleteRangeFromTextBuffer( *Buffer.TextBuffer, Position.q, Count.q )
   
   CompilerIf #False
@@ -145,6 +144,7 @@ Module TextBuffer
   
   Procedure WriteUTF8IntoTextBuffer( *Buffer.TextBuffer, Position.q, *Text, Count.q )
     
+    DebugAssert( *Buffer <> #Null )
     DebugAssert( *Text <> #Null )
     DebugAssert( Position >= 0 )
     DebugAssert( Count >= 0 )
@@ -237,6 +237,10 @@ Module TextBuffer
   
   Procedure.s ReadStringFromTextBuffer( *Buffer.TextBuffer, Position.q = 0, Count.q = -1 )
     
+    DebugAssert( *Buffer <> #Null )
+    DebugAssert( Position >= 0 )
+    DebugAssert( Position < GetGapBufferLength( @*Buffer\Text ) Or ( Position = 0 And GetGapBufferLength( @*Buffer\Text ) = 0 ) )
+    
     If Count < 0
       Count = GetGapBufferLength( *Buffer\Text )
     EndIf
@@ -266,6 +270,25 @@ Module TextBuffer
   
   ;............................................................................
   
+  Procedure.s ReadLineFromTextBuffer( *Buffer.TextBuffer, LineNumber.i )
+    
+    DebugAssert( *Buffer <> #Null )
+    DebugAssert( LineNumber >= 1 )
+    DebugAssert( LineNumber <= GetTextBufferLineCount( *Buffer ) )
+    
+    ;;TODO: create a function that combines getting line start&length into one operation
+    Define.q LineLength = GetTextBufferLineLength( *Buffer, LineNumber )
+    If LineLength = 0
+      ProcedureReturn ""
+    EndIf
+    Define.q LineStart = GetTextBufferLineStart( *Buffer, LineNumber )
+    
+    ProcedureReturn ReadStringFromTextBuffer( *Buffer, LineStart, LineLength )
+    
+  EndProcedure
+  
+  ;............................................................................
+  
   Procedure DeleteRangeFromTextBuffer( *Buffer.TextBuffer, Position.q, Count.q )
     
     DebugAssert( *Buffer <> #Null )
@@ -281,7 +304,7 @@ Module TextBuffer
     
     ; Delete line markers, if necessary.
     Define.q EndPosition = Position + Count
-    While GetMarkerPositionRightOfGap( @*Buffer\LinePositions ) < EndPosition
+    While GetMarkerPositionRightOfGap( @*Buffer\LinePositions ) <= EndPosition
       EraseFromGapBuffer( @*Buffer\LinePositions, 1 )
     Wend
     
@@ -319,6 +342,7 @@ ProcedureUnit CanWriteIntoTextBuffer()
   Assert( GetTextBufferLineLength( @Buffer, 1 ) = 5 )
   Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
   Assert( ReadStringFromTextBuffer( @Buffer ) = "First" )
+  Assert( ReadLineFromTextBuffer( @Buffer, 1 ) = "First" )
   
   WriteStringIntoTextBuffer( @Buffer, 5, ~"\nSecond" )
   
@@ -329,6 +353,8 @@ ProcedureUnit CanWriteIntoTextBuffer()
   Assert( GetTextBufferLineLength( @Buffer, 2 ) = 6 )
   Assert( GetTextBufferLineStart( @Buffer, 2 ) = 6 )
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"First\nSecond" )
+  Assert( ReadLineFromTextBuffer( @Buffer, 1 ) = "First" )
+  Assert( ReadLineFromTextBuffer( @Buffer, 2 ) = "Second" )
   
   WriteStringIntoTextBuffer( @Buffer, 12, ~"\n" )
   
@@ -341,6 +367,9 @@ ProcedureUnit CanWriteIntoTextBuffer()
   Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
   Assert( GetTextBufferLineStart( @Buffer, 3 ) = 13 )
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"First\nSecond\n" )
+  Assert( ReadLineFromTextBuffer( @Buffer, 1 ) = "First" )
+  Assert( ReadLineFromTextBuffer( @Buffer, 2 ) = "Second" )
+  Assert( ReadLineFromTextBuffer( @Buffer, 3 ) = "" )
   
   WriteCharacterIntoTextBuffer( @Buffer, 1, '\' )
     
@@ -353,6 +382,9 @@ ProcedureUnit CanWriteIntoTextBuffer()
   Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
   Assert( GetTextBufferLineStart( @Buffer, 3 ) = 14 )
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"F\\irst\nSecond\n" )
+  Assert( ReadLineFromTextBuffer( @Buffer, 1 ) = ~"F\\irst" )
+  Assert( ReadLineFromTextBuffer( @Buffer, 2 ) = "Second" )
+  Assert( ReadLineFromTextBuffer( @Buffer, 3 ) = "" )
   
   DestroyTextBuffer( @Buffer )
   
@@ -393,8 +425,8 @@ ProcedureUnit CanDeleteFromTextBuffer()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 385
-; FirstLine = 331
+; CursorPosition = 306
+; FirstLine = 270
 ; Folding = ---
-; Markers = 268,283
+; Markers = 263,290
 ; EnableXP

@@ -24,8 +24,11 @@ XIncludeFile "Utils.pb"
 
 ;;TODO: add repeat counts for command executions
 
+;;TODO: macro recording and playback
+
 ; Dispatches commands to a dynamic set of editors.
 ; The shell has no visual aspect; it is purely a way of mutating discrete chunks of state through commands.
+; All edit operations going through the shell can be represented as text strings.
 DeclareModule Shell
   
   #GLOBAL_MODE = "global"
@@ -823,7 +826,6 @@ ProcedureUnit CanSwitchEditorModesInShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 192
-; FirstLine = 160
+; CursorPosition = 30
 ; Folding = ----
 ; EnableXP

@@ -234,6 +234,12 @@ Module TextEditor
       If Not StopAtLineBoundaries
         While NewColumnNumber <= 0
           
+          ; Check if we reached the beginning of the buffer.
+          If NewLineNumber = 1
+            NewColumnNumber = 1
+            Break
+          EndIf
+          
           NewLineNumber - 1
           NewLineStart = GetTextBufferLineStart( *Editor\Buffer, NewLineNumber )
           NewLineLength = GetTextBufferLineLength( *Editor\Buffer, NewLineNumber )
@@ -246,7 +252,22 @@ Module TextEditor
       EndIf
     ElseIf NewColumnNumber > NewLineLength
       If Not StopAtLineBoundaries
-        NotImplemented( "Moving out of line to right" )
+        Define.q LineCount = GetTextBufferLineCount( *Editor\Buffer )
+        While NewColumnNumber > NewLineLength
+          
+          ; Check if we've reached the end of the buffer.
+          If NewLineNumber = LineCount
+            NewColumnNumber = NewLineLength + 1
+            Break
+          EndIf
+          
+          NewColumnNumber - ( NewLineLength + 1 )
+          
+          NewLineNumber + 1
+          NewLineStart = GetTextBufferLineStart( *Editor\Buffer, NewLineNumber )
+          NewLineLength = GetTextBufferLineLength( *Editor\Buffer, NewLineNumber )
+          
+        Wend
       Else
         NewColumnNumber = NewLineLength + 1
       EndIf
@@ -266,6 +287,11 @@ Module TextEditor
   Procedure DeleteCharactersInTextEditor( *Editor.TextEditor, Count.q )
     
     DebugAssert( *Editor <> #Null )
+    
+    ; Ignore if there's nothing in the buffer.
+    If GetTextBufferLength( *Editor\Buffer ) = 0
+      ProcedureReturn
+    EndIf
     
     If Count < 0
       DebugAssert( *Editor\CursorPosition + Count >= 0 )
@@ -294,6 +320,19 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   CreateTextEditor( @Editor, @Buffer )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = "" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 1 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 0 )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 0 )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 1 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
+  
+  DeleteCharactersInTextEditor( @Editor, -1 )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = "" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 1 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 0 )
   Assert( GetCursorPositionFromTextEditor( @Editor ) = 0 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 1 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
@@ -301,6 +340,9 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   InsertStringIntoTextEditor( @Editor, "Test" )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = "Test" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 1 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 4 )
   Assert( GetCursorPositionFromTextEditor( @Editor ) = 4 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 1 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 5 )
@@ -308,6 +350,13 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   InsertStringIntoTextEditor( @Editor, ~"\nFoobar\n" )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 3 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 5 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 12 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
   Assert( GetCursorPositionFromTextEditor(  @Editor ) = 12 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 3 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
@@ -315,6 +364,15 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   InsertCharacterIntoTextEditor( @Editor, #LF )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 5 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 12 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 4 ) = 13 )
+  Assert( GetTextBufferLineLength( @Buffer, 4 ) = 0 )
   Assert( GetCursorPositionFromTextEditor( @Editor ) = 13 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 4 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
@@ -322,6 +380,15 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   MoveCursorInTextEditor( @Editor, 0, -1 )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 5 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 12 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 4 ) = 13 )
+  Assert( GetTextBufferLineLength( @Buffer, 4 ) = 0 )
   Assert( GetCursorPositionFromTextEditor( @Editor ) = 12 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 3 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
@@ -329,6 +396,15 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   MoveCursorInTextEditor( @Editor, 0, -1 )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 5 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 12 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 4 ) = 13 )
+  Assert( GetTextBufferLineLength( @Buffer, 4 ) = 0 )
   Assert( GetCursorPositionFromTextEditor( @Editor ) = 5 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
@@ -336,6 +412,15 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   MoveCursorInTextEditor( @Editor, 2 )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoobar\n\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 5 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 12 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 4 ) = 13 )
+  Assert( GetTextBufferLineLength( @Buffer, 4 ) = 0 )
   Assert( GetCursorPositionFromTextEditor( @Editor ) = 7 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 3 )
@@ -343,6 +428,15 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   InsertStringIntoTextEditor( @Editor, "blub" )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoblubobar\n\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 5 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 10 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 16 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 4 ) = 17 )
+  Assert( GetTextBufferLineLength( @Buffer, 4 ) = 0 )
   Assert( GetCursorPositionFromTextEditor( @Editor ) = 11 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 7 )
@@ -350,6 +444,15 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   DeleteCharactersInTextEditor( @Editor, 2 )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFoblubar\n\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 5 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 8 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 14 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 4 ) = 15 )
+  Assert( GetTextBufferLineLength( @Buffer, 4 ) = 0 )
   Assert( GetCursorPositionFromTextEditor( @Editor ) = 11 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 7 )
@@ -357,6 +460,15 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   DeleteCharactersInTextEditor( @Editor, -3 )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Test\nFobar\n\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 4 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 5 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 5 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 11 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 4 ) = 12 )
+  Assert( GetTextBufferLineLength( @Buffer, 4 ) = 0 )
   Assert( GetCursorPositionFromTextEditor( @Editor ) = 8 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 4 )
@@ -364,14 +476,93 @@ ProcedureUnit CanInsertAndDeleteTextThroughTextEditor()
   DeleteCharactersInTextEditor( @Editor, -4 )
   
   Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Testar\n\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 3 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 7 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 8 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
   Assert( GetCursorPositionFromTextEditor( @Editor ) = 4 )
   Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 1 )
   Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 5 )
   
+  MoveCursorInTextEditor( @Editor, 4, 0, #True )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Testar\n\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 3 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 7 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 8 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 6 )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 1 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 7 )
+  
+  MoveCursorInTextEditor( @Editor, 4, 0, #False )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"Testar\n\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 3 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 6 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 7 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 0 )
+  Assert( GetTextBufferLineStart( @Buffer, 3 ) = 8 )
+  Assert( GetTextBufferLineLength( @Buffer, 3 ) = 0 )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 8 )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 3 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
+  
+  DeleteCharactersInTextEditor( @Editor, -8 )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = "" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 1 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 0 )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 0 )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 1 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
+  
+  InsertStringIntoTextEditor( @Editor, ~"aa\nb" )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"aa\nb" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 2 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 2 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 3 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 1 )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 4 )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 2 )
+
+  DeleteCharactersInTextEditor( @Editor, -1 )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = ~"aa\n" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 2 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 2 )
+  Assert( GetTextBufferLineStart( @Buffer, 2 ) = 3 )
+  Assert( GetTextBufferLineLength( @Buffer, 2 ) = 0 )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 3 )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 2 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 1 )
+  
+  DeleteCharactersInTextEditor( @Editor, -1 )
+  
+  Assert( ReadStringFromTextBuffer( @Buffer ) = "aa" )
+  Assert( GetTextBufferLineCount( @Buffer ) = 1 )
+  Assert( GetTextBufferLineStart( @Buffer, 1 ) = 0 )
+  Assert( GetTextBufferLineLength( @Buffer, 1 ) = 2 )
+  Assert( GetCursorPositionFromTextEditor( @Editor ) = 2 )
+  Assert( GetCursorLineNumberFromTextEditor( @Editor ) = 1 )
+  Assert( GetCursorColumnNumberFromTextEditor( @Editor ) = 3 )
+  
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 365
-; FirstLine = 310
+; CursorPosition = 520
+; FirstLine = 478
 ; Folding = --
 ; EnableXP

@@ -53,9 +53,13 @@ Module TextEditorShell
     #TextEditorMoveRight
     #TextEditorMoveUp
     #TextEditorMoveDown
+    #TextEditorMoveNextLine
     
     ; Deletion commands.
     #TextEditorDeleteLeft
+    
+    ; Insertion commands.
+    #TextEditorInsertLineBreak
     
   EndEnumeration
   
@@ -107,7 +111,7 @@ Module TextEditorShell
     DebugAssert( *Editor <> #Null )
     
     PokeQ( *OutCommands, ?TextEditor_Commands )
-    ProcedureReturn 7
+    ProcedureReturn 9
     
   EndProcedure
   
@@ -137,8 +141,18 @@ Module TextEditorShell
       Case #TextEditorMoveDown
         MoveCursorInTextEditor( @*Editor\Editor, 0, 1 )
         
+      Case #TextEditorMoveNextLine
+        MoveCursorInTextEditor( @*Editor\Editor, 0, -1 )
+        Define.q Column = GetCursorColumnNumberFromTextEditor( @*Editor\Editor )
+        If Column <> 1
+          MoveCursorInTextEditor( @*Editor\Editor, - ( Column - 1 ), 0 )
+        EndIf
+        
       Case #TextEditorDeleteLeft
         DeleteCharactersInTextEditor( @*Editor\Editor, -1 )
+        
+      Case #TextEditorInsertLineBreak
+        InsertCharacterIntoTextEditor( @*Editor\Editor, #LF )
         
     EndSelect
     
@@ -167,7 +181,9 @@ Module TextEditorShell
       CommandData( #TextEditorMoveRight, "move_right", "normal", "l", 0 )
       CommandData( #TextEditorMoveUp, "move_up", "normal", "k", 0 )
       CommandData( #TextEditorMoveDown, "move_down", "normal", "j", 0 )
+      CommandData( #TextEditorMoveNextLine, "move_next_line", "normal", "<CR>", 0 )
       CommandData( #TextEditorDeleteLeft, "delete_left", "insert", "<BS>", 0 )
+      CommandData( #TextEditorInsertLineBreak, "insert_line_break", "insert", "<CR>", 0 )
     
   EndDataSection
   
@@ -256,7 +272,7 @@ ProcedureUnit CanMoveTextEditorCursorInShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 109
-; FirstLine = 98
+; CursorPosition = 183
+; FirstLine = 158
 ; Folding = --
 ; EnableXP

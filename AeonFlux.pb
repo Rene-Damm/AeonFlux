@@ -5,11 +5,6 @@
 
 EnableExplicit
 
-;Current Goal: multiple lines of text
-;  (need to know where the lines are in the text) DONE
-;  (need to be able to render individual lines)
-;  (need to be able to navigate up and down)
-
 XIncludeFile "Utils.pb"
 XIncludeFile "GapBuffer.pb"         ; Memory.
 XIncludeFile "TextMarker.pb"        ; Positions.
@@ -19,9 +14,9 @@ XIncludeFile "Shell.pb"             ; Modes, commands.
 XIncludeFile "TextEditorShell.pb"   ; Text editing commands.
 
 ; NOTE: Unit tests can be debugged by simply invoking them here.
+CanInsertAndDeleteTextThroughTextEditor()
 
 ;TextRenderer (dirty rects and render buffers)
-;Editor (Shell?) (modes, command maps, macros, )    *all* edit operations must be representable as text strings
 ;Configuration
 ;Workspace (blobs)
 
@@ -44,41 +39,7 @@ SetActiveGadget( Canvas )
 
 Define Font = LoadFont( #PB_Any, "Consolas", 16, #PB_Font_HighQuality )
 
-Enumeration EditMode
-  #NormalMode
-  #InsertMode
-EndEnumeration
-
-Enumeration CursorMode
-  #CursorModeBlock
-  #CursorModeBar
-  #CursorModeUnderline
-EndEnumeration
-
-;cursor may be spanning several characters
-Define CursorPositionInLine.i = 0
-Define CursorMode.i = #CursorModeBlock
-Define EditMode.i = #NormalMode
-
 ;store text in memory as UTF-8 and use the same single set of temp strings (UTF-16) for rendering?
-
-; Set up text buffer.
-Define TextBufferLeftLength.i = 256
-Define TextBufferRightLength.i = 256
-Define TextBufferLeft.s = Space( TextBufferLeftLength )
-Define TextBufferRight.s = Space( TextBufferRightLength )
-Define *TextBufferLeft = @TextBufferLeft
-Define *TextBufferRight = @TextBufferRight
-Define TextBufferCursor.s = Space( 1 )
-Define *TextBufferCursor = @TextBufferCursor
-
-Define TextLengthLeft.i = 0
-Define TextLengthRight.i = 0
-Define TextLength.i = TextLengthLeft + 0 + TextLengthRight
-
-PokeC( *TextBufferCursor, 0 )
-PokeC( *TextBufferLeft, 0 )
-PokeC( *TextBufferRight, 0 )
 
 ;==============================================================================
 
@@ -115,151 +76,19 @@ EndModule
 
 ;==============================================================================
 
-Procedure MoveCursorLeft()
-  
-  Shared CursorPositionInLine
-  Shared *TextBufferRight
-  Shared *TextBufferCursor
-  Shared *TextBufferLeft
-  Shared TextLengthLeft
-  Shared TextLengthRight
-  
-  ; Stop at first character.
-  If CursorPositionInLine = 0
-    ProcedureReturn
-  EndIf
-  
-  ; Prepend current cursor character to right buffer.
-  MoveMemory( *TextBufferRight, *TextBufferRight + 2, MemoryStringLength( *TextBufferRight ) * 2 + 2 ) ; Include NUL.
-  PokeC( *TextBufferRight, PeekC( *TextBufferCursor ) )
-  TextLengthRight + 1
-  
-  ; Cycle end of left buffer into cursor character.
-  If CursorPositionInLine = 1
-    PokeC( *TextBufferCursor, PeekC( *TextBufferLeft ) )
-    PokeC( *TextBufferLeft, 0 )
-  Else
-    Define TextBufferLeftLengthInChars = MemoryStringLength( *TextBufferLeft )
-    Define *LastCharOffset = *TextBufferLeft + ( TextBufferLeftLengthInChars - 1 ) * 2
-    PokeC( *TextBufferCursor, PeekC( *LastCharOffset ) )
-    PokeC( *LastCharOffset, 0 )
-  EndIf
-  TextLengthLeft - 1
-  CursorPositionInLine - 1
-  
-EndProcedure
+UseModule Shell
+UseModule TextBuffer
+UseModule TextEditor
+UseModule TextEditorShell
 
+; Create shell.
+Define.Shell Shell
+CreateShell( @Shell )
+
+; Create text editor.
+Define.TextEditorShell *TextEditor = CreateEditor( @Shell, SizeOf( TextEditorShell ), @CreateTextEditorShell() )
+  
 ;==============================================================================
-
-Procedure MoveCursorRight()
-  
-  Shared TextLength
-  Shared CursorPositionInLine
-  Shared *TextBufferCursor
-  Shared *TextBufferLeft
-  Shared *TextBufferRight
-  Shared TextLengthLeft
-  Shared TextLengthRight
-  
-  ; Stop at last character.
-  If CursorPositionInLine = TextLength - 1
-    ProcedureReturn
-  EndIf
-  
-  ; Append current cursor character to left buffer.
-  Define TextBufferLeftLengthInChars = MemoryStringLength( *TextBufferLeft )
-  PokeC( *TextBufferLeft + TextBufferLeftLengthInChars * 2, PeekC( *TextBufferCursor ) )
-  PokeC( *TextBufferLeft + TextBufferLeftLengthInChars * 2 + 2, 0 )
-  TextLengthLeft + 1
-  
-  ; Cycle beginning of right buffer into cursor character.
-  PokeC( *TextBufferCursor, PeekC( *TextBufferRight ) )
-  MoveMemory( *TextBufferRight + 2, *TextBufferRight, MemoryStringLength( *TextBufferRight ) * 2 ) ; Include NUL.]
-  TextLengthRight - 1
-  
-  CursorPositionInLine + 1
-  
-EndProcedure
-
-;==============================================================================
-
-Procedure InsertCharacterAtCursor( Character.c )
-  
-  Shared TextBufferLeft
-  Shared *TextBufferLeft
-  Shared TextLengthLeft
-  Shared TextBufferLeftLength
-  Shared CursorPositionInLine
-  Shared TextLength
-  
-  ; Increase buffer size, if necessary.
-  If TextLengthLeft + 1 = TextBufferLeftLength
-    Define NewLeftBufferLength = TextBufferLeftLength + 256
-    Define NewLeftBuffer.s = Space( NewLeftBufferLength )
-    CopyMemory( *TextBufferLeft, @NewLeftBuffer, TextLengthLeft * 2 ) ; Without NUL.
-    TextBufferLeft = NewLeftBuffer
-    *TextBufferLeft = @NewLeftBuffer
-    TextBufferLeftLength = NewLeftBufferLength
-  EndIf
-  
-  ; Append character to left buffer.
-  Define *CharacterPtr = *TextBufferLeft + TextLengthLeft * 2
-  PokeC( *CharacterPtr, Character )
-  PokeC( *CharacterPtr + 2, 0 )
-  
-  CursorPositionInLine + 1
-  TextLength + 1
-  TextLengthLeft + 1
-  
-EndProcedure
-
-;==============================================================================
-
-Procedure DeleteCharacterBackwardsFromCursor()
-  
-  Shared *TextBufferLeft
-  Shared TextLengthLeft
-  Shared TextLength
-  Shared CursorPositionInLine
-  
-  If TextLengthLeft = 0
-    ProcedureReturn
-  EndIf
-  
-  TextLengthLeft - 1
-  PokeC( *TextBufferLeft + TextLengthLeft * 2, 0 )
-  CursorPositionInLine - 1
-  TextLength - 1
-  
-EndProcedure
-
-;==============================================================================
-
-Procedure SwitchToEditMode( Mode.i )
-  
-  Shared EditMode
-  Shared CursorMode
-  Shared CursorPositionInLine
-  Shared TextLength
-  
-  EditMode = Mode
-  Select Mode
-    Case #NormalMode
-      CursorMode = #CursorModeBlock
-      ;TODO get rid of this behavior
-      ; If we're at end of line, move left one position.
-      If CursorPositionInLine = TextLength And TextLength > 0
-        MoveCursorLeft()
-      EndIf
-    Case #InsertMode
-      CursorMode = #CursorModeBar
-  EndSelect
-  
-EndProcedure
-
-;==============================================================================
-
-Define EatNextCharacter.i = #False
 
 ; Main loop.
 Repeat
@@ -270,36 +99,24 @@ Repeat
     
     ; Input.
     Select EventType()
+        
       Case #PB_EventType_KeyDown
         Define Key = GetGadgetAttribute( Canvas, #PB_Canvas_Key )
-        Select EditMode
-          Case #NormalMode
-            Select Key
-              Case #PB_Shortcut_Escape
-                End
-              Case #PB_Shortcut_H
-                MoveCursorLeft()
-              Case #PB_Shortcut_L
-                MoveCursorRight()
-              Case #PB_Shortcut_I
-                SwitchToEditMode( #InsertMode )
-                ; Suppress insertion of 'i' character.
-                EatNextCharacter = #True
-            EndSelect
-          Case #InsertMode
-            Select Key
-              Case #PB_Shortcut_Back
-                DeleteCharacterBackwardsFromCursor()
-              Case #PB_Shortcut_Escape
-                SwitchToEditMode( #NormalMode )
-            EndSelect
+        Select Key
+          Case #PB_Shortcut_Escape
+            SendShellInput( @Shell, "<ESC>" )
+          Case #PB_Shortcut_Back
+            SendShellInput( @Shell, "<BS>" )
+          Case #PB_Shortcut_Return
+            SendShellInput( @Shell, "<CR>" )
         EndSelect
+        
       Case #PB_EventType_Input
-        If EditMode = #InsertMode And Not EatNextCharacter
-          Define Input = GetGadgetAttribute( Canvas, #PB_Canvas_Input )
-          InsertCharacterAtCursor( Input )
-        EndIf
-        EatNextCharacter = #False
+        ;;TODO: modifier keys (control, shift, alt)
+        Define Character = GetGadgetAttribute( Canvas, #PB_Canvas_Input )
+        ;;TODO: avoid string conversion here
+        SendShellInput( @Shell, Chr( Character ) )
+        
     EndSelect
     
     ; Draw.
@@ -342,38 +159,88 @@ Repeat
     
     CompilerElse
     
+      ;REVIEW Drawing long strings seems to be super slow; this will ultimatly probably have to redraw as little as possible
+      
       If StartDrawing( CanvasOutput( Canvas ) )
       	
         DrawingFont( FontID( Font ) )
         DrawingMode( #PB_2DDrawing_Default )
-  
-        Define TextWidthLeft = TextWidth( TextBufferLeft )
-        Define TextWidthRight = TextWidth( TextBufferRight )
-        Define TextWidthCursor = TextWidth( TextBufferCursor )
-        Define TextHeightLeft = TextHeight( TextBufferLeft )
         
-        ;keep a per-line dirty region
-        
-        ;REVIEW Drawing long strings seems to be super slow; this will ultimatly probably have to redraw as little as possible
-        
-        ; Clear line.
-        Box( 100, 100, CanvasWidth, TextHeightLeft, BackgroundColor )
-        
-        ; Draw portion of line left and right to the cursor.
-        BackColor( BackgroundColor )
-        FrontColor( TextColor )
-        DrawText( 100, 100, TextBufferLeft )
-        DrawText( 100 + TextWidthLeft + TextWidthCursor, 100, TextBufferRight )
-        
-        ; Draw portion of line at cursor.
-        If CursorMode = #CursorModeBlock
-          BackColor( TextColor )
-          FrontColor( BackgroundColor )
-        EndIf
-        DrawText( 100 + TextWidthLeft, 100, TextBufferCursor )
-        If CursorMode = #CursorModeBar
-          Box( 100 + TextWidthLeft, 100, 5, TextHeightLeft, TextColor )
-        EndIf
+        Define.i X = 100
+        Define.i Y = 100
+        ;;TODO: support selections
+        Define.q CursorLineNumber = GetCursorLineNumberFromTextEditor( @*TextEditor\Editor )
+        Define.q CursorColumnNumber = GetCursorColumnNumberFromTextEditor( @*TextEditor\Editor )
+        Define.i NumLines = GetTextBufferLineCount( @*TextEditor\Buffer )
+        Define.i LineNumber
+        Box( X, Y, CanvasWidth, ( TextHeight( " " ) + 10 ) * ( NumLines + 1 ), BackgroundColor ) ; +1 lines is a hacky way to clear cursor after deleting last line
+        For LineNumber = 1 To NumLines
+          
+          ;;TODO: replace this with a cached renderer
+          
+          Define.s Line = ReadLineFromTextBuffer( @*TextEditor\Buffer, LineNumber )
+          Define.i LineLength = Len( Line )
+          Define.i TextHeight
+          If LineLength > 0
+            TextHeight = TextHeight( Line )
+          Else
+            TextHeight = TextHeight( " " )
+          EndIf
+          
+          BackColor( BackgroundColor )
+          FrontColor( TextColor )
+          
+          If LineNumber = CursorLineNumber
+            
+            Define.i XOffset = 0
+            Define.i Mode = *TextEditor\Mode
+            
+            ; Draw left part.
+            If CursorColumnNumber > 1
+              
+              Define.s TextLeft = Left( Line, CursorColumnNumber - 1 )
+              DrawText( X + XOffset, Y, TextLeft )
+              XOffset + TextWidth( TextLeft )
+              
+            EndIf
+            
+            ; Draw cursor part.
+            Define.s TextCursor
+            If CursorColumnNumber <= LineLength
+              TextCursor = Mid( Line, CursorColumnNumber, 1 ) ; Indexing starts at 1!
+            Else
+              TextCursor = " "
+            EndIf
+            If Mode = #NormalMode
+              BackColor( TextColor )
+              FrontColor( BackgroundColor )
+            EndIf
+            DrawText( X + XOffset, Y, TextCursor )
+            If Mode = #InsertMode
+              Box( X + XOffset, Y, 4, TextHeight, TextColor )
+            EndIf
+            XOffset + TextWidth( TextCursor )
+            
+            BackColor( BackgroundColor )
+            FrontColor( TextColor )
+            
+            ; Draw right part.
+            If CursorColumnNumber <= ( LineLength - 1 )
+              
+              Define.s TextRight = Right( Line, LineLength - CursorColumnNumber )
+              DrawText( X + XOffset, Y, TextRight )
+              
+            EndIf
+            
+          Else
+            
+            DrawText( X, Y, Line )
+            
+          EndIf
+          
+          Y + TextHeight + 10
+                    
+        Next LineNumber        
         
         StopDrawing()
         
@@ -387,7 +254,7 @@ Until Event = #PB_Event_CloseWindow
 
 ;[X] Can delete range in TextBuffer
 ;[X] Can backspace in editor shell
-;[ ] Refactor TextBuffer to have a write-head
+;[X] Switch main over to using new text editing backend
 
 
 ;[X] TODO Render cursor (block)
@@ -397,9 +264,9 @@ Until Event = #PB_Event_CloseWindow
 ;[X] TODO Insert characters
 ;[X] TODO Start with empty buffer
 ;[X] TODO Backspace
-;[ ] TODO Use gap buffer
-;[ ] TODO Line markers
-;[ ] TODO Add second line
+;[X] TODO Use gap buffer
+;[X] TODO Line markers
+;[X] TODO Add second line
 ;[ ] TODO Delete line
 ;[ ] TODO Save text
 ;[ ] TODO Restore text on startup
@@ -442,8 +309,8 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 388
-; FirstLine = 377
-; Folding = --
+; CursorPosition = 267
+; FirstLine = 241
+; Folding = -
 ; EnableXP
 ; HideErrorLog
