@@ -12,9 +12,9 @@ XIncludeFile "TextBuffer.pb"        ; Text.
 XIncludeFile "TextEditor.pb"        ; Cursors, selections, undo.
 XIncludeFile "Shell.pb"             ; Modes, commands.
 XIncludeFile "TextEditorShell.pb"   ; Text editing commands.
+XIncludeFile "Workspace.pb"         ; Blob collections.
 
 ; NOTE: Unit tests can be debugged by simply invoking them here.
-CanInsertAndDeleteTextThroughTextEditor()
 
 ;TextRenderer (dirty rects and render buffers)
 ;Configuration
@@ -56,23 +56,9 @@ EndDeclareModule
 Module TextRenderBuffer
 EndModule
 
-DeclareModule DataModel
-  
-  ;root
-  ;project
-  ;workspace
-  
-  ;or all in separate modules?
-  
-EndDeclareModule
-
-Module DataModel
-EndModule
-
-;==============================================================================
-
-
-;TextCursor module? (block-select cursors and the like) or TextSelection?
+;Module Root
+;Module Workspace
+;Module Project
 
 ;==============================================================================
 
@@ -87,7 +73,56 @@ CreateShell( @Shell )
 
 ; Create text editor.
 Define.TextEditorShell *TextEditor = CreateEditor( @Shell, SizeOf( TextEditorShell ), @CreateTextEditorShell() )
+
+;==============================================================================
+
+; Make this part of Utils?
+DeclareModule JobSystem
   
+  Structure Job
+    
+    Name.s
+    *Data
+    *JobThreadFunc
+    *MainThreadFunc
+    
+  EndStructure
+  
+  CompilerIf #False
+    Declare   InitializeJobSystem()
+    Declare   QueueJob( *Job.Job )
+  CompilerEndIf
+  
+EndDeclareModule
+
+Module JobSystem
+EndModule
+
+;==============================================================================
+
+Define.s TestDataDirectory = GetHomeDirectory() + "Dropbox" + #PS$ + "Workspaces" + #PS$ + "AeonFlux_PureBasic" + #PS$ + "_Test"
+
+;later: add two directories, one for where projects live by default and one for where workspace live by default
+Define.s ProjectPath = TestDataDirectory + #PS$ + "FirstProject" + #PS$
+Define.s WorkspacePath = TestDataDirectory + #PS$ + "FirstWorkspace" + #PS$
+
+
+
+
+; extension corresponds to content type
+Structure TextBlob
+EndStructure
+
+Structure Workspace
+  List TextBlobs.TextBlob()
+EndStructure
+
+Procedure SaveWorkspace()
+EndProcedure
+
+Procedure LoadWorkspace()
+EndProcedure
+
 ;==============================================================================
 
 ; Main loop.
@@ -270,6 +305,8 @@ Until Event = #PB_Event_CloseWindow
 ;[ ] TODO Delete line
 ;[ ] TODO Save text
 ;[ ] TODO Restore text on startup
+;[ ] TODO Compose project
+
 ;...
 ;[ ] TODO Input run through command interpreter 
 ;...
@@ -309,8 +346,7 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 267
-; FirstLine = 241
-; Folding = -
+; CursorPosition = 17
+; Folding = --
 ; EnableXP
 ; HideErrorLog

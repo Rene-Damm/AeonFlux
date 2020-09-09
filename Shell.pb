@@ -22,6 +22,8 @@ XIncludeFile "Utils.pb"
 ;;REVIEW: have a way to make commands contextual? (like <...> in Vim)
 ;;REVIEW: have a special "global" mode that is always active in addition to the specific current mode?
 
+;;REVIEW: how does this handle things like "yiw"? i.e. all the ways that Vim commands compose
+
 ;;TODO: add repeat counts for command executions
 
 ;;TODO: macro recording and playback
@@ -826,6 +828,6 @@ ProcedureUnit CanSwitchEditorModesInShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 30
+; CursorPosition = 24
 ; Folding = ----
 ; EnableXP
