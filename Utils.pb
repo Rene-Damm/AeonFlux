@@ -5,6 +5,8 @@ DeclareModule Utils
   #MIN_QUAD = -9223372036854775808
   #MAX_QUAD = 9223372036854775807
   
+  ;............................................................................
+  
   Macro QUOTE
     "
   EndMacro
@@ -20,6 +22,13 @@ DeclareModule Utils
     CompilerEndIf
   EndMacro
   
+  ;............................................................................
+
+  ;;REVIEW: for local FS, "virtualize" file handles so that we can guarantee to keep under OS limit? (use LRU cache; use index+version quads)
+  ;;REVIEW: file systems probably need to be made thread-safe
+  
+  ; File systems contain only files (no directories; these are represented as separate file systems).
+  ; File paths can contain separators (for local file systems, that will make the files go into subdirectories).
   Interface IFileSystem
     Destroy()
     OpenFile.q( Path.s, Flags.i = 0 )
@@ -31,11 +40,29 @@ DeclareModule Utils
     FlushFileBuffers( Handle.q )
     DeleteFile.i( Path.s )
     GetFileSize.q( Path.s )
+    FileExists.i( Path.s )
     ListFiles.i( Path.s, Pattern.s, Array Files.s( 1 ) )
-    ListDirectories.i( Path.s, Pattern.s, Array Directories.s( 1 ) )
   EndInterface
   
+  EnumerationBinary
+    #JobDoesIO
+  EndEnumeration
+  
+  Prototype   JobFn                   ( *Job )
+  
+  Structure Job
+    Name.s
+    Flags.i
+    ;;TODO: dependencies
+    *Data
+    *JobThreadFunc.JobFn
+    *MainThreadFunc.JobFn
+    *CleanUpFunc.JobFn
+  EndStructure
+  
   Prototype.i CompareFn               ( *Left, *Right )
+  
+  ;............................................................................
   
   Declare.q Min                       ( A.q, B.q )
   Declare.q Max                       ( A.q, B.q )
@@ -52,11 +79,16 @@ DeclareModule Utils
   Declare.s StringAppendChars         ( Buffer.s, *BufferLength, *BufferCapacity, *Chars, NumChars.i )
   Declare.q FindStringInArray         ( Array Strings.s( 1 ), String.s )
   
-  Declare.q CreateLocalFileSystem     ( RootPath.s )
+  Declare.q CreateLocalFileSystem     ( RootPath.s, Recurse.i = #False )
   Declare.q CreateVirtualFileSystem   ()
   
   Declare.s ReadStringFromFile        ( *FileSystem.IFileSystem, FileHandle.q, Position.q = 0, Length = -1, Flags.i = 0 )
   Declare   WriteStringToFile         ( *FileSystem.IFileSystem, FileHandle.q, Position.q, String.s, Index.i = -1, NumChars = -1, Flags.i = 0 )
+  
+  Declare.q RunJob                    ( *Job.Job )
+  Declare   ExecuteMainThreadJobFuncs ()
+  
+  Declare.s GenerateGUID              ()
   
 EndDeclareModule
 
@@ -305,7 +337,7 @@ Module Utils
     RootPath.s
   EndStructure
   
-  Procedure.q CreateLocalFileSystem( RootPath.s )
+  Procedure.q CreateLocalFileSystem( RootPath.s, Recurse.i = #False )
     NotImplemented( "CreateVirtualFileSystem" )
   EndProcedure
   
@@ -349,6 +381,23 @@ Module Utils
   EndProcedure
   
   Procedure.q VFS_OpenFile( *VFS.VirtualFileSystem, Path.s, Flags.i )
+    
+    DebugAssert( *VFS <> #Null )
+    
+    Define.s PathLowerCase = LCase( Path )
+    Define.i NumFiles = ArraySize( *VFS\Files() )
+    Define.i Index
+    For Index = 0 To NumFiles - 1
+      
+      If *VFS\Files( Index )\PathLowerCase = PathLowerCase
+        *VFS\Files( Index )\Flags | #VirtualFile_IsOpen
+        ProcedureReturn Index + 1
+      EndIf
+            
+    Next
+    
+    ProcedureReturn 0
+    
   EndProcedure
   
   Procedure.q VFS_CreateFile( *VFS.VirtualFileSystem, Path.s, Flags.i )
@@ -372,29 +421,39 @@ Module Utils
     *VFS\Files( Index )\PathLowerCase = LCase( Path )
     *VFS\Files( Index )\Flags = #VirtualFile_IsOpen
     
-    ProcedureReturn Index
+    ProcedureReturn Index + 1
     
   EndProcedure
   
   Procedure VFS_CloseFile( *VFS.VirtualFileSystem, Handle.q )
+    
+    DebugAssert( *VFS <> #Null )
+    DebugAssert( Handle > 0 )
+    DebugAssert( Handle <= ArraySize( *VFS\Files() ) )
+    
+    Define.i Index = Handle - 1
+    *VFS\Files( Index )\Flags & ~#VirtualFile_IsOpen
+    
   EndProcedure
   
   Procedure.q VFS_ReadFile( *VFS.VirtualFileSystem, Handle.q, Position.q, Size.q, *Buffer )
     
     DebugAssert( *VFS <> #Null )
-    DebugAssert( Handle >= 0 )
-    DebugAssert( Handle < ArraySize( *VFS\Files() ) )
+    DebugAssert( Handle > 0 )
+    DebugAssert( Handle <= ArraySize( *VFS\Files() ) )
     DebugAssert( Position >= 0 )
     DebugAssert( Size >= 0 )
     DebugAssert( *Buffer <> #Null )
-    DebugAssert( *VFS\Files( Handle )\Flags & #VirtualFile_IsOpen )
     
-    Define.q FileSize = *VFS\Files( Handle )\Size
+    Define.i Index = Handle - 1
+    DebugAssert( *VFS\Files( Index )\Flags & #VirtualFile_IsOpen )
+    
+    Define.q FileSize = *VFS\Files( Index )\Size
     If Position + Size > FileSize
       Size = FileSize - Position
     EndIf
     
-    Define *FileContents = *VFS\Files( Handle )\Contents
+    Define *FileContents = *VFS\Files( Index )\Contents
     CopyMemory( *FileContents + Position, *Buffer, Size )
     
     ProcedureReturn Size
@@ -404,31 +463,33 @@ Module Utils
   Procedure VFS_WriteFile( *VFS.VirtualFileSystem, Handle.q, Position.q, Size.q, *Buffer )
     
     DebugAssert( *VFS <> #Null )
-    DebugAssert( Handle >= 0 )
-    DebugAssert( Handle < ArraySize( *VFS\Files() ) )
+    DebugAssert( Handle > 0 )
+    DebugAssert( Handle <= ArraySize( *VFS\Files() ) )
     DebugAssert( Position >= 0 )
     DebugAssert( Size >= 0 )
     DebugAssert( *Buffer <> #Null )
-    DebugAssert( *VFS\Files( Handle )\Flags & #VirtualFile_IsOpen )
+    
+    Define.i Index = Handle - 1
+    DebugAssert( *VFS\Files( Index )\Flags & #VirtualFile_IsOpen )
     
     ; Enlarge memory, if necessary.
     Define.q Capacity = 0
-    Define *Contents = *VFS\Files( Handle )\Contents
+    Define *Contents = *VFS\Files( Index )\Contents
     If *Contents <> #Null
       Capacity = MemorySize( *Contents )
     EndIf
     If Position + Size > Capacity
       Capacity = AlignToMultipleOf( Max( Capacity + 1024, Position + Size ), 1024 )
       *Contents = ReAllocateMemory( *Contents, Capacity, #PB_Memory_NoClear )
-      *VFS\Files( Handle )\Contents = *Contents
+      *VFS\Files( Index )\Contents = *Contents
     EndIf
     
     ; Copy.
     CopyMemory( *Buffer, *Contents + Position, Size )
     
     ; Update size.
-    If *VFS\Files( Handle )\Size < Position + Size
-      *VFS\Files( Handle )\Size = Position + Size
+    If *VFS\Files( Index )\Size < Position + Size
+      *VFS\Files( Index )\Size = Position + Size
     EndIf
     
   EndProcedure
@@ -480,6 +541,25 @@ Module Utils
     
   EndProcedure
   
+  Procedure.i VFS_FileExists( *VFS.VirtualFileSystem, Path.s )
+    
+    DebugAssert( *VFS <> #Null )
+    
+    Define.s PathLowerCase = LCase( Path )
+    Define.i NumFiles = ArraySize( *VFS\Files() )
+    Define.i Index
+    For Index = 0 To NumFiles - 1
+      
+      If *VFS\Files( Index )\PathLowerCase = PathLowerCase
+        ProcedureReturn #True
+      EndIf
+      
+    Next
+    
+    ProcedureReturn #False
+    
+  EndProcedure
+  
   Procedure.i VFS_ListFiles( *VFS.VirtualFileSystem, Path.s, Pattern.s, Array Files.s( 1 ) )
     
     DebugAssert( *VFS <> #Null )
@@ -489,6 +569,10 @@ Module Utils
     Define.i Count = 0
     Define.i NumFiles = ArraySize( *VFS\Files() )
     Define.VirtualFile *File = @*VFS\Files()
+    Define.i Regex = #PB_Any
+    If Len( Pattern ) > 0
+      Regex = CreateRegularExpression( #PB_Any, Pattern, #PB_RegularExpression_NoCase )
+    EndIf
     
     Define.i Index
     For Index = 0 To NumFiles - 1
@@ -507,7 +591,11 @@ Module Utils
         Continue
       EndIf
       
-      ;;TODO: check match against pattern
+      ; Check pattern.
+      If Regex <> #PB_Any And Not MatchRegularExpression( Regex, FilePathLowerCase )
+        *File + SizeOf( VirtualFile )
+        Continue
+      EndIf
       
       ; Check capacity.
       If Capacity <= Count
@@ -523,12 +611,12 @@ Module Utils
       
     Next
     
+    If Regex <> #PB_Any
+      FreeRegularExpression( Regex )
+    EndIf
+    
     ProcedureReturn Count
     
-  EndProcedure
-  
-  Procedure.i VFS_ListDirectories( *VFS.VirtualFileSystem, Path.s, Pattern.s, Array Directories.s( 1 ) )
-    NotImplemented( "VFS_ListDirectories" )
   EndProcedure
   
   DataSection
@@ -544,8 +632,8 @@ Module Utils
       Data.q @VFS_FlushFileBuffers()
       Data.q @VFS_DeleteFile()
       Data.q @VFS_GetFileSize()
+      Data.q @VFS_FileExists()
       Data.q @VFS_ListFiles()
-      Data.q @VFS_ListDirectories()
     
   EndDataSection
   
@@ -561,6 +649,53 @@ Module Utils
     NotImplemented( "WriteStringToFile" )
   EndProcedure
   
+  ;............................................................................
+  
+  Procedure.q RunJob( *Job.Job )
+    NotImplemented( "RunJob" )
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure ExecuteMainThreadJobFuncs()
+    NotImplemented( "ExecuteMainThreadJobFuncs" )
+  EndProcedure
+  
+  ;............................................................................
+    
+  Procedure.s GenerateGUID()
+    
+    ; NOTE: Format needs to be the same across all platforms.
+    
+    CompilerIf #PB_Compiler_OS = #PB_OS_Windows
+      
+      Define.s{ 78 } Buffer
+      Define.GUID GUID
+      
+      If CoCreateGuid_( @GUID ) = #S_OK
+        Define.i NumChars = StringFromGUID2_( GUID, @Buffer, 76 )
+        If NumChars = 39 ; 32 + 4 dashes + 2 curly braces + null terminator
+          ProcedureReturn PeekS( @Buffer + 2, 36, #PB_Unicode ) ; Snip away curly brackets and null terminator.
+        EndIf
+      EndIf
+      
+    CompilerElseIf #PB_Compiler_OS = #PB_OS_MacOS
+      
+      Define.q UUIDRef = CocoaMessage( 0, CocoaMessage( 0, 0, "NSUUID alloc" ), "init" )
+      If UUIDRef
+        Define.q StringRef = CocoaMessage( 0, IDRef, "UUIDString" )
+        Define.q UTF8 = CocoaMessage( 0, StringRef, "UTF8String" )
+        Define.s Result = PeekS( UTF8, -1, #PB_UTF8 )
+        CocoaMessage( 0, StringRef, "release" )
+        CocoaMessage( 0, UUIDRef, "release" ) ;alloc
+        CocoaMessage( 0, UUIDRef, "release" ) ;init
+        ProcedureReturn #Result
+      EndIf
+      
+    CompilerEndIf
+    
+  EndProcedure  
+  
 EndModule
 
 ;..............................................................................
@@ -575,9 +710,16 @@ ProcedureUnit CanCreateVirtualFileSystem()
   
   Assert( *VFS\ListFiles( "", "", Files() ) = 0 )
   Assert( *VFS\ListFiles( "DoesNotExist", "", Files() ) = 0 )
+  Assert( *VFS\FileExists( "first" ) = #False )
   
   Define.q First = *VFS\CreateFile( "first" )
   Define.q Second = *VFS\CreateFile( "second" )
+  
+  Assert( First <> 0 )
+  Assert( Second <> 0 )
+  Assert( *VFS\FileExists( "first" ) = #True )
+  Assert( *VFS\FileExists( "second" ) = #True )
+  Assert( *VFS\FileExists( "DoesNotExist" ) = #False )
   
   Assert( *VFS\ListFiles( "", "", Files() ) = 2 )
   
@@ -616,19 +758,33 @@ ProcedureUnit CanCreateVirtualFileSystem()
   *VFS\DeleteFile( "first" )
   
   Assert( *VFS\GetFileSize( "first" ) = -1 )
+  Assert( *VFS\FileExists( "first" ) = #False )
+  Assert( *VFS\FileExists( "second" ) = #True )
   
   Assert( *VFS\ListFiles( "", "", Files() ) = 1 )
   Assert( Files( 0 ) = "second" )
   
-  ;;TODO: close and reopen second file
+  *VFS\CloseFile( Second )
+  Second = *VFS\OpenFile( "second" )
+  
+  Assert( Second <> 0 )
+  
   ;;TODO: create new file
   
   *VFS\Destroy()
 
 EndProcedureUnit
 
+;..............................................................................
+
+ProcedureUnit CanRunJobs()
+
+  ;;... continue here
+
+EndProcedureUnit
+
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 436
-; FirstLine = 418
+; CursorPosition = 398
+; FirstLine = 371
 ; Folding = ------
 ; EnableXP

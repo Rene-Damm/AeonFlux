@@ -6,6 +6,7 @@
 EnableExplicit
 
 XIncludeFile "Utils.pb"
+XIncludeFile "Math.pb"
 XIncludeFile "GapBuffer.pb"         ; Memory.
 XIncludeFile "TextMarker.pb"        ; Positions.
 XIncludeFile "TextBuffer.pb"        ; Text.
@@ -76,52 +77,11 @@ Define.TextEditorShell *TextEditor = CreateEditor( @Shell, SizeOf( TextEditorShe
 
 ;==============================================================================
 
-; Make this part of Utils?
-DeclareModule JobSystem
-  
-  Structure Job
-    
-    Name.s
-    *Data
-    *JobThreadFunc
-    *MainThreadFunc
-    
-  EndStructure
-  
-  CompilerIf #False
-    Declare   InitializeJobSystem()
-    Declare   QueueJob( *Job.Job )
-  CompilerEndIf
-  
-EndDeclareModule
-
-Module JobSystem
-EndModule
-
-;==============================================================================
-
 Define.s TestDataDirectory = GetHomeDirectory() + "Dropbox" + #PS$ + "Workspaces" + #PS$ + "AeonFlux_PureBasic" + #PS$ + "_Test"
 
 ;later: add two directories, one for where projects live by default and one for where workspace live by default
 Define.s ProjectPath = TestDataDirectory + #PS$ + "FirstProject" + #PS$
 Define.s WorkspacePath = TestDataDirectory + #PS$ + "FirstWorkspace" + #PS$
-
-
-
-
-; extension corresponds to content type
-Structure TextBlob
-EndStructure
-
-Structure Workspace
-  List TextBlobs.TextBlob()
-EndStructure
-
-Procedure SaveWorkspace()
-EndProcedure
-
-Procedure LoadWorkspace()
-EndProcedure
 
 ;==============================================================================
 
@@ -346,7 +306,7 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 17
-; Folding = --
+; CursorPosition = 18
+; Folding = -
 ; EnableXP
 ; HideErrorLog
