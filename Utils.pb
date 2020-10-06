@@ -24,13 +24,13 @@ DeclareModule Utils
   
   ;............................................................................
 
-  ;;REVIEW: for local FS, "virtualize" file handles so that we can guarantee to keep under OS limit? (use LRU cache; use index+version quads)
   ;;REVIEW: file systems probably need to be made thread-safe
   
   ; File systems contain only files (no directories; these are represented as separate file systems).
   ; File paths can contain separators (for local file systems, that will make the files go into subdirectories).
   Interface IFileSystem
     Destroy()
+    ;;REVIEW: why do we even require opening a file?
     OpenFile.q( Path.s, Flags.i = 0 )
     CreateFile.q( Path.s, Flags.i = 0 )
     CloseFile( Handle.q )
@@ -70,6 +70,7 @@ DeclareModule Utils
   Declare.q AlignToMultipleOf         ( Number.q, Alignment.q )
   Declare.i CompareFnQ                ( *Left, *Right )
   Declare.i StartsWith                ( Prefix.s, String.s )
+  Declare.i EndsWith                  ( Suffix.s, String.s )
   Declare.i StringEqual               ( String1.s, String2.s, NumChars.i )
   Declare   NotImplemented            ( Message.s )
   
@@ -79,7 +80,7 @@ DeclareModule Utils
   Declare.s StringAppendChars         ( Buffer.s, *BufferLength, *BufferCapacity, *Chars, NumChars.i )
   Declare.q FindStringInArray         ( Array Strings.s( 1 ), String.s )
   
-  Declare.q CreateLocalFileSystem     ( RootPath.s, Recurse.i = #False )
+  Declare.q CreateLocalFileSystem     ( RootPath.s )
   Declare.q CreateVirtualFileSystem   ()
   
   Declare.s ReadStringFromFile        ( *FileSystem.IFileSystem, FileHandle.q, Position.q = 0, Length = -1, Flags.i = 0 )
@@ -176,6 +177,45 @@ Module Utils
       *StringPtr + SizeOf( Character )
       
     Wend
+    
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure.i EndsWith( Suffix.s, String.s )
+    
+    Define.i SuffixLen = Len( Suffix )
+    If SuffixLen = 0
+      ProcedureReturn #True
+    EndIf
+    
+    Define.i StringLen = Len( String )
+    If SuffixLen > StringLen
+      ProcedureReturn #False
+    EndIf
+    
+    Define *SuffixPtr = @Suffix + ( SuffixLen - 1 ) * SizeOf( Character )
+    Define *StringPtr = @String + ( StringLen - 1 ) * SizeOf( Character )
+    
+    While #True
+      
+      Define.c SuffixChar = PeekC( *SuffixPtr )
+      Define.c StringChar = PeekC( *StringPtr )
+      If SuffixChar <> StringChar
+        ProcedureReturn #False
+      EndIf
+      
+      SuffixLen - 1
+      If SuffixLen = 0
+        ProcedureReturn #True
+      EndIf
+      
+      *SuffixPtr - SizeOf( Character )
+      *StringPtr - SizeOf( Character )
+      
+    Wend
+    
+    ProcedureReturn #False
     
   EndProcedure
   
@@ -332,15 +372,332 @@ Module Utils
   
   ;............................................................................
   
-  Structure LocalFileSystem
-    *Methods
-    RootPath.s
+  ;;TODO: support for read-only files
+  
+  #MAX_OPEN_HANDLES = 32
+  
+  Structure LocalFile
+    Path.s ; In original casing.
+    HandleIndex.i ; -1 if invalid.
+    OpenCount.i
   EndStructure
   
-  Procedure.q CreateLocalFileSystem( RootPath.s, Recurse.i = #False )
-    NotImplemented( "CreateVirtualFileSystem" )
+  Structure LocalFileHandle
+    Handle.i
+    Timestamp.q
+    *File.LocalFile
+  EndStructure
+  
+  Structure LocalFileSystem
+    
+    *Methods
+    RootPath.s ; Ends in path separator.
+    
+    Map Files.q() ; By path (lowercased).
+    Array Handles.LocalFileHandle( #MAX_OPEN_HANDLES )
+    
+    ;;REVIEW: Put tree structure into a graph? (will keep file system structure available at all times)
+    
+  EndStructure
+  
+  CompilerIf #False
+  Procedure.q MakeFileHandle( Version.i, Index.i )
+    ProcedureReturn ( Version << 32 ) & FileNumber
   EndProcedure
   
+  Procedure.i GetIndexFromFileHandle( FileHandle.q )
+    ProcedureReturn FileHandle & $FFFFFFFF
+  EndProcedure
+  
+  Procedure.i GetVersionFromFileHandle( FileHandle.q )
+    ProcedureReturn FileHandle >> 32
+  EndProcedure
+  CompilerEndIf
+
+  Procedure.i ClaimFileHandleIndex( *LFS.LocalFileSystem )
+    
+    Define.i Index = 0
+    Define.q LeastRecentlyUsedEntryTimestamp = 0
+    Define.i IndexOfLeastRecentlyUsedEntry = -1
+    
+    For Index = 0 To #MAX_OPEN_HANDLES - 1
+      If *LFS\Handles( Index )\File = #Null
+        ; Unused entry.
+        ProcedureReturn Index
+      EndIf
+      
+      ; Keep track of least recently used entry.
+      Define.q Timestamp = *LFS\Handles( Index )\Timestamp
+      If Timestamp < LeastRecentlyUsedEntryTimestamp
+        IndexOfLeastRecentlyUsedEntry = Index
+        LeastRecentlyUsedEntryTimestamp = Timestamp
+      EndIf
+    Next
+    
+    ;;does PureBasic really need this or does it already virtualize this internally?
+    ;;don't open file right away... defer until we read or write
+    
+    ; Claim least recently used entry.
+    *LFS\Handles( IndexOfLeastRecentlyUsedEntry )\File\HandleIndex = -1
+    CloseFile( *LFS\Handles( IndexOfLeastRecentlyUsedEntry )\Handle )
+    
+  EndProcedure
+  
+  Procedure.q CreateLocalFileSystem( RootPath.s )
+    
+    If Len( RootPath ) = 0
+      RootPath = GetCurrentDirectory()
+    EndIf
+    
+    If Not EndsWith( RootPath, #PS$ )
+      RootPath + #PS$
+    EndIf
+        
+    Define.LocalFileSystem *LFS = AllocateStructure( LocalFileSystem )
+    
+    *LFS\Methods = ?LocalFileSystem_VTable
+    *LFS\RootPath = RootPath
+        
+    ProcedureReturn *LFS
+    
+  EndProcedure
+  
+  Procedure LFS_Destroy( *LFS.LocalFileSystem )
+    
+    ; Close files.
+    Define.i NumFiles = ArraySize( *LFS\Handles() )
+    If NumFiles > 0
+      Define.i Index
+      For Index = 0 To NumFiles - 1
+        Define.i Handle = *LFS\Handles( Index )\Handle
+        If Handle <> 0
+          CloseFile( Handle )
+        EndIf
+      Next
+    EndIf
+    
+    FreeStructure( *LFS )
+    
+  EndProcedure
+  
+  Procedure.q LFS_OpenFile( *LFS.LocalFileSystem, Path.s, Flags.i )
+    
+    DebugAssert( *LFS <> #Null )
+    DebugAssert( Len( Path ) > 0 )
+    
+    ;;TODO: needs to protect against the file disappearing on disk after we added it to the map
+    
+    ; See if we already have it in the map.
+    Define.s PathLowerCase = LCase( Path )
+    Define.LocalFile *File = FindMapElement( *LFS\Files(), PathLowerCase )
+    If *File = #Null
+      
+      ; No. Check if it exists. If so, add it.
+      
+      Define.s FullPath = *LFS\RootPath + Path
+      If FileSize( FullPath ) < 0
+        ProcedureReturn 0
+      EndIf
+      
+      *File = AddMapElement( *LFS\Files(), PathLowerCase )
+      *File\Path = Path
+      *File\HandleIndex = -1
+      
+    EndIf
+    
+    *File\OpenCount + 1
+    ProcedureReturn *File
+        
+  EndProcedure
+  
+  Procedure.q LFS_CreateFile( *LFS.LocalFileSystem, Path.s, Flags.i )
+    
+    DebugAssert( *LFS <> #Null )
+    
+    ; Make sure it doesn't already exist.
+    Define.s PathLowerCase = LCase( Path )
+    Define.LocalFile *File = FindMapElement( *LFS\Files(), PathLowerCase )
+    If *File <> #Null
+      ProcedureReturn #Null
+    EndIf
+    
+    ; Add it to the map.
+    *File = AddMapElement( *LFS\Files(), PathLowerCase )
+    *File\Path = Path
+    *File\HandleIndex = -1
+    
+    *File\OpenCount + 1
+    
+    ;;REVIEW: should this also create a file on disk right away?
+    
+    ProcedureReturn *File
+    
+  EndProcedure
+  
+  Procedure LFS_CloseFile( *LFS.LocalFileSystem, Handle.q )
+    
+    DebugAssert( *LFS <> #Null )
+    DebugAssert( Handle <> 0 )
+    
+    Define.LocalFile *File = Handle
+    If *File\OpenCount > 0
+      *File\OpenCount - 1
+      ;;TODO
+    EndIf
+    
+  EndProcedure
+  
+  Procedure.q LFS_ReadFile( *LFS.LocalFileSystem, Handle.q, Position.q, Size.q, *Buffer )
+    
+    DebugAssert( *LFS <> #Null )
+    DebugAssert( Handle <> 0 )
+    DebugAssert( Position >= 0 )
+    DebugAssert( Size >= 0 )
+    DebugAssert( *Buffer <> #Null )
+    
+    Define.LocalFile *File = Handle
+    DebugAssert( *File\OpenCount > 0 )
+    
+    ; Claim active handle, if we don't have one ATM.
+    If *File\HandleIndex = -1
+      *File\HandleIndex = ClaimFileHandleIndex( *LFS )
+    EndIf
+    
+    ; Read.
+    Define.q File = *LFS\Handles( *File\HandleIndex )
+    FileSeek( File, Position, #PB_Absolute )
+    ProcedureReturn ReadData( File, *Buffer, Size )
+    
+  EndProcedure
+  
+  Procedure LFS_WriteFile( *LFS.LocalFileSystem, Handle.q, Position.q, Size.q, *Buffer )
+    
+    DebugAssert( *LFS <> #Null )
+    DebugAssert( Handle <> 0 )
+    DebugAssert( Position >= 0 )
+    DebugAssert( Size >= 0 )
+    DebugAssert( *Buffer <> #Null )
+    
+    Define.LocalFile *File = Handle
+    DebugAssert( *File\OpenCount > 0 )
+    
+    ; Claim active handle, if we don't have one ATM.
+    If *File\HandleIndex = -1
+      *File\HandleIndex = ClaimFileHandleIndex( *LFS )
+    EndIf
+    
+    ; Write.
+    Define.q File = *LFS\Handles( *File\HandleIndex )
+    FileSeek( File, Position, #PB_Absolute )
+    WriteData( File, *Buffer, Size )
+    
+  EndProcedure
+  
+  Procedure LFS_TruncateFile( *LFS.LocalFileSystem, Handle.q, Position.q )
+    NotImplemented( "LFS_TruncateFile" )
+  EndProcedure
+  
+  Procedure LFS_FlushFileBuffers( *LFS.LocalFileSystem, Handle.q )
+    ; Nothing to do.
+  EndProcedure
+  
+  Procedure.i LFS_DeleteFile( *LFS.LocalFileSystem, Path.s )
+    
+    DebugAssert( *LFS <> #Null )
+    
+  EndProcedure
+  
+  Procedure.q LFS_GetFileSize( *LFS.LocalFileSystem, Path.s )
+    
+    DebugAssert( *LFS <> #Null )
+        
+  EndProcedure
+  
+  Procedure.i LFS_FileExists( *LFS.LocalFileSystem, Path.s )
+    
+    DebugAssert( *LFS <> #Null )
+        
+  EndProcedure
+  
+  Procedure.i LFS_ListFiles( *LFS.LocalFileSystem, Path.s, Pattern.s, Array Files.s( 1 ) )
+    
+    DebugAssert( *LFS <> #Null )
+    
+    ; List contents of directory.
+    Define.s FullPath = *LFS\RootPath + Path
+    Define.q Directory = ExamineDirectory( #PB_Any, FullPath, "" )
+    If Directory = 0
+      ProcedureReturn 0
+    EndIf
+    
+    ; Make sure path is terminated with a separator.
+    Define.s PathWithSlash = Path
+    If Not EndsWith( #PS$, Path ) And Len( Path ) > 0
+      PathWithSlash + #PS$
+    EndIf
+    
+    ; Compile regex, if given.
+    Define.i Regex = #PB_Any
+    If Len( Pattern ) > 0
+      Regex = CreateRegularExpression( #PB_Any, Pattern, #PB_RegularExpression_NoCase )
+    EndIf
+    
+    ; Go through directory entries.
+    Define.i NumFound = 0
+    Define.i Capacity = ArraySize( Files() )
+    While NextDirectoryEntry( Directory )
+      
+      ; Skip anything that isn't a file.
+      If DirectoryEntryType( Directory ) <> #PB_DirectoryEntry_File
+        Continue
+      EndIf
+      
+      ; Check pattern.
+      Define.s FileName = DirectoryEntryName( Directory )
+      If Regex <> #PB_Any And Not MatchRegularExpression( Regex, FileName )
+        Continue
+      EndIf
+      
+      ; Check capacity.
+      If Capacity <= NumFound
+        Capacity + 16
+        ReDim Files( Capacity )
+      EndIf
+      
+      ; Add file.
+      Files( NumFound ) = PathWithSlash + FileName
+      NumFound + 1
+      
+    Wend
+    
+    ; Clean up.
+    FinishDirectory( Directory )
+    If Regex <> #PB_Any
+      FreeRegularExpression( Regex )
+    EndIf
+    
+    ProcedureReturn NumFound
+    
+  EndProcedure
+  
+  DataSection
+    
+    LocalFileSystem_VTable:
+      Data.q @LFS_Destroy()
+      Data.q @LFS_OpenFile()
+      Data.q @LFS_CreateFile()
+      Data.q @LFS_CloseFile()
+      Data.q @LFS_ReadFile()
+      Data.q @LFS_WriteFile()
+      Data.q @LFS_TruncateFile()
+      Data.q @LFS_FlushFileBuffers()
+      Data.q @LFS_DeleteFile()
+      Data.q @LFS_GetFileSize()
+      Data.q @LFS_FileExists()
+      Data.q @LFS_ListFiles()
+    
+  EndDataSection
+    
   ;............................................................................
   
   EnumerationBinary
@@ -358,7 +715,7 @@ Module Utils
   
   Structure VirtualFileSystem
     *Methods
-    Array Files.VirtualFile( 1 )
+    Array Files.VirtualFile( 1 ) ; Always having at least one element simplifies the code.
   EndStructure
   
   Procedure.q CreateVirtualFileSystem()
@@ -366,8 +723,6 @@ Module Utils
     Define.VirtualFileSystem *VFS = AllocateStructure( VirtualFileSystem )
     
     *VFS\Methods = ?VirtualFileSystem_VTable
-    
-    ; PureBasic always allocates arrays with a single element :(
     *VFS\Files( 0 )\Flags = #VirtualFile_Deleted
     
     ProcedureReturn *VFS
@@ -564,6 +919,7 @@ Module Utils
     
     DebugAssert( *VFS <> #Null )
     
+    Define.i Capacity = ArraySize( Files() )
     Define.i PathLen = Len( Path )
     Define.s PathLowerCase = LCase( Path )
     Define.i Count = 0
@@ -784,7 +1140,8 @@ ProcedureUnit CanRunJobs()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 398
-; FirstLine = 371
-; Folding = ------
+; CursorPosition = 627
+; FirstLine = 609
+; Folding = ---------
+; Markers = 659
 ; EnableXP

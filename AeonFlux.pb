@@ -19,7 +19,6 @@ XIncludeFile "Workspace.pb"         ; Blob collections.
 
 ;TextRenderer (dirty rects and render buffers)
 ;Configuration
-;Workspace (blobs)
 
 ;central event/message bus?
 
@@ -77,11 +76,18 @@ Define.TextEditorShell *TextEditor = CreateEditor( @Shell, SizeOf( TextEditorShe
 
 ;==============================================================================
 
+UseModule Utils
+UseModule Workspace
+
 Define.s TestDataDirectory = GetHomeDirectory() + "Dropbox" + #PS$ + "Workspaces" + #PS$ + "AeonFlux_PureBasic" + #PS$ + "_Test"
 
 ;later: add two directories, one for where projects live by default and one for where workspace live by default
 Define.s ProjectPath = TestDataDirectory + #PS$ + "FirstProject" + #PS$
 Define.s WorkspacePath = TestDataDirectory + #PS$ + "FirstWorkspace" + #PS$
+
+Define.IFileSystem *WorkspaceFS = CreateLocalFileSystem( WorkspacePath )
+Define.Workspace *Workspace = AllocateStructure( Workspace )
+LoadWorkspace( *Workspace, *WorkspaceFS )
 
 ;==============================================================================
 
@@ -306,7 +312,8 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 18
+; CursorPosition = 89
+; FirstLine = 54
 ; Folding = -
 ; EnableXP
 ; HideErrorLog
