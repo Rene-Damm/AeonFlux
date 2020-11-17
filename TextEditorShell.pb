@@ -3,6 +3,7 @@ EnableExplicit
 XIncludeFile "Utils.pb"
 XIncludeFile "TextEditor.pb"
 XIncludeFile "Shell.pb"
+XIncludeFile "Workspace.pb"
 
 ; Adds a command model around TextEditor.
 ; Command model is very Vim-inspired.
@@ -10,6 +11,7 @@ DeclareModule TextEditorShell
   
   UseModule TextEditor
   UseModule TextBuffer
+  UseModule Workspace
     
   ;............................................................................
   
@@ -21,15 +23,20 @@ DeclareModule TextEditorShell
   ;............................................................................
   
   Structure TextEditorShell
+    
     *Methods
+    
     Mode.i
     Editor.TextEditor
     Buffer.TextBuffer
+    *Workspace.Workspace
+    *TextBlob.Blob
+    
   EndStructure
     
   ;............................................................................
 
-  Declare CreateTextEditorShell( *Editor.TextEditorShell )
+  Declare   CreateTextEditorShell( *Editor.TextEditorShell )
 
 EndDeclareModule
 
@@ -271,8 +278,37 @@ ProcedureUnit CanMoveTextEditorCursorInShell()
   
 EndProcedureUnit
 
+;..............................................................................
+
+ProcedureUnit CanConnectTextBlobToTextEditorShell()
+
+  UseModule Shell
+  UseModule TextEditorShell
+  UseModule TextBuffer
+  UseModule TextEditor
+  UseModule Workspace
+  
+  ;how is the editor connected to a workspace?
+  
+  ;command to load text
+  ; - parameter for blob name or id
+  ; - optional parameter for workspace name or id (if not supplied, uses current workspace)
+  
+  ;remember: saving is automatic! (no manual :w necessary as in Vim)
+  
+  Define.Shell Shell
+  CreateShell( @Shell )
+  Define.IEditor *Editor = CreateEditor( @Shell, SizeOf( TextEditorShell ), @CreateTextEditorShell() )
+  Define.TextEditorShell *TextEditor = *Editor
+  
+  ;create text blob and connect it to text editor shell
+  ;put text into shell (saving should happen automatically)
+  ;modify the text
+
+EndProcedureUnit
+
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 183
-; FirstLine = 158
+; CursorPosition = 305
+; FirstLine = 246
 ; Folding = --
 ; EnableXP

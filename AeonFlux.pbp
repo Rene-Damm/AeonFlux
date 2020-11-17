@@ -7,12 +7,12 @@
   <section name="data">
     <explorer view="C:\Program Files\PureBasic\Examples\" pattern="0"/>
     <log show="0"/>
-    <lastopen date="2020-10-05 10:27" user="Rene Damm" host="VORKRAFT"/>
+    <lastopen date="2020-11-16 10:15" user="Rene Damm" host="VORKRAFT"/>
   </section>
   <section name="files">
     <file name="AeonFlux.pb">
       <config load="1" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="7ce0b4df673226a0e236cb2f6500a5b7"/>
+      <fingerprint md5="9b53ce9bf9a09b922e16131bc409c5e5"/>
     </file>
     <file name="GapBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
@@ -21,6 +21,14 @@
     <file name="Math.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
       <fingerprint md5="87adb07018a5d85dfaaab653b57640d4"/>
+    </file>
+    <file name="Project.pb">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
+      <fingerprint md5="fc0c8fd284c88ea627783f84df73e191"/>
+    </file>
+    <file name="Root.pb">
+      <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
+      <fingerprint md5="eebb3074ef139281677a936e6e00348f"/>
     </file>
     <file name="Shell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
@@ -36,7 +44,7 @@
     </file>
     <file name="TextEditorShell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="12c0f1e52c43f2e7ec1ad487ed426d5f"/>
+      <fingerprint md5="0ea3459732573373a77b852d6172c904"/>
     </file>
     <file name="TextMarker.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
@@ -44,11 +52,11 @@
     </file>
     <file name="Utils.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="5f26952f414db9515bacbf7a3a64b51d"/>
+      <fingerprint md5="a068e081fe174661ffb00ec1e1da1259"/>
     </file>
     <file name="Workspace.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="d8f10e50a2ebc64a7e87d9c3e8a24901"/>
+      <fingerprint md5="faa6a4b7c2f93281e86046be83d24c59"/>
     </file>
   </section>
   <section name="targets">

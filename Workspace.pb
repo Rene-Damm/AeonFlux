@@ -1,5 +1,8 @@
 EnableExplicit
 
+; A workspace is a collection of data blobs.
+; Stored in a directory with each blob stored as a separate file.
+; Empty directory is empty workspace.
 DeclareModule Workspace
   
   UseModule Utils
@@ -44,7 +47,7 @@ DeclareModule Workspace
     FileHandle.q
     MetaFileHandle.q
     
-    ;what about additional blob-specific stuff?
+    ;what about additional blob-specific stuff? text blob will need information about cursor location, for example. does this go into the blob file itself?
     
   EndStructure
   
@@ -320,7 +323,7 @@ ProcedureUnit CanSaveAndLoadWorkspace()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 58
+; CursorPosition = 56
 ; FirstLine = 24
 ; Folding = --
 ; EnableXP

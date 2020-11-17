@@ -11,14 +11,17 @@ XIncludeFile "GapBuffer.pb"         ; Memory.
 XIncludeFile "TextMarker.pb"        ; Positions.
 XIncludeFile "TextBuffer.pb"        ; Text.
 XIncludeFile "TextEditor.pb"        ; Cursors, selections, undo.
+XIncludeFile "Workspace.pb"         ; Blob collections.
+XIncludeFile "Project.pb"           ; Source files.
+XIncludeFile "Root.pb"              ; 
 XIncludeFile "Shell.pb"             ; Modes, commands.
 XIncludeFile "TextEditorShell.pb"   ; Text editing commands.
-XIncludeFile "Workspace.pb"         ; Blob collections.
 
 ; NOTE: Unit tests can be debugged by simply invoking them here.
+CanCreateVirtualDirectorySystem()
 
 ;TextRenderer (dirty rects and render buffers)
-;Configuration
+;Configuration/settings
 
 ;central event/message bus?
 
@@ -56,24 +59,6 @@ EndDeclareModule
 Module TextRenderBuffer
 EndModule
 
-;Module Root
-;Module Workspace
-;Module Project
-
-;==============================================================================
-
-UseModule Shell
-UseModule TextBuffer
-UseModule TextEditor
-UseModule TextEditorShell
-
-; Create shell.
-Define.Shell Shell
-CreateShell( @Shell )
-
-; Create text editor.
-Define.TextEditorShell *TextEditor = CreateEditor( @Shell, SizeOf( TextEditorShell ), @CreateTextEditorShell() )
-
 ;==============================================================================
 
 UseModule Utils
@@ -88,6 +73,21 @@ Define.s WorkspacePath = TestDataDirectory + #PS$ + "FirstWorkspace" + #PS$
 Define.IFileSystem *WorkspaceFS = CreateLocalFileSystem( WorkspacePath )
 Define.Workspace *Workspace = AllocateStructure( Workspace )
 LoadWorkspace( *Workspace, *WorkspaceFS )
+
+;==============================================================================
+
+UseModule Shell
+UseModule TextBuffer
+UseModule TextEditor
+UseModule TextEditorShell
+
+; Create shell.
+Define.Shell Shell
+CreateShell( @Shell )
+
+;;TODO: this needs to be connected to a text blob
+; Create text editor.
+Define.TextEditorShell *TextEditor = CreateEditor( @Shell, SizeOf( TextEditorShell ), @CreateTextEditorShell() )
 
 ;==============================================================================
 
@@ -312,8 +312,7 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 89
-; FirstLine = 54
+; CursorPosition = 20
 ; Folding = -
 ; EnableXP
 ; HideErrorLog

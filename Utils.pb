@@ -26,29 +26,52 @@ DeclareModule Utils
 
   ;;REVIEW: file systems probably need to be made thread-safe
   
+  ;have an IFile??
+  
+  EnumerationBinary
+    #FileTruncate     ; When writing, set file length to position plus length of bytes written.
+  EndEnumeration
+  
   ; File systems contain only files (no directories; these are represented as separate file systems).
   ; File paths can contain separators (for local file systems, that will make the files go into subdirectories).
   Interface IFileSystem
     Destroy()
-    ;;REVIEW: why do we even require opening a file?
     OpenFile.q( Path.s, Flags.i = 0 )
     CreateFile.q( Path.s, Flags.i = 0 )
     CloseFile( Handle.q )
-    ReadFile.q( Handle.q, Position.q, Size.q, *Buffer )
-    WriteFile( Handle.q, Position.q, Size.q, *Buffer )
-    TruncateFile( Handle.q, Position.q )
+    ReadFile.q( Handle.q, Position.q, Size.q, *Buffer, Flags.i = 0 )
+    WriteFile( Handle.q, Position.q, Size.q, *Buffer, Flags.i = 0 )
+    ReadString.s( Handle.q, Position.q = 0, Length.i = -1, Flags.i = 0 )
+    WriteString( Handle.q, String.s, Position.q = 0, Flags.i = 0 )
+    SetFileSize( Handle.q, Size.q )
+    SizeFile.q( Handle.q )
+    ;;REVIEW: give file mappings their own handle? or do away with UnmapFile and require MapFile() to be called each time and treat it like a cache?
+    MapFile.q( Handle.q, Position.q = 0, Size.q = -1 )
+    UnmapFile.q( Handle.q )
     FlushFileBuffers( Handle.q )
     DeleteFile.i( Path.s )
     GetFileSize.q( Path.s )
     FileExists.i( Path.s )
+    ;;REVIEW: collapse Path argument into Pattern argument?
     ListFiles.i( Path.s, Pattern.s, Array Files.s( 1 ) )
   EndInterface
+  
+  Interface IDirectorySystem
+    Destroy()
+    CreateDirectory.q( Path.s ) ; Returns an IFileSystem.
+    OpenDirectory.q( Path.s ) ; Returns an IFileSystem.
+    DeleteDirectory( Path.s )
+    DirectoryExists( Path.s )
+    ListDirectories.i( Path.s, Pattern.s, Array Directories.s( 1 ) )
+  EndInterface
+  
+  Prototype.q CreateDirectoryFn         ( Path.s )
   
   EnumerationBinary
     #JobDoesIO
   EndEnumeration
   
-  Prototype   JobFn                   ( *Job )
+  Prototype   JobFn                     ( *Job )
   
   Structure Job
     Name.s
@@ -60,36 +83,38 @@ DeclareModule Utils
     *CleanUpFunc.JobFn
   EndStructure
   
-  Prototype.i CompareFn               ( *Left, *Right )
+  Prototype.i CompareFn                 ( *Left, *Right )
   
   ;............................................................................
   
-  Declare.q Min                       ( A.q, B.q )
-  Declare.q Max                       ( A.q, B.q )
-  Declare.q AbsQ                      ( Number.q )
-  Declare.q AlignToMultipleOf         ( Number.q, Alignment.q )
-  Declare.i CompareFnQ                ( *Left, *Right )
-  Declare.i StartsWith                ( Prefix.s, String.s )
-  Declare.i EndsWith                  ( Suffix.s, String.s )
-  Declare.i StringEqual               ( String1.s, String2.s, NumChars.i )
-  Declare   NotImplemented            ( Message.s )
+  Declare.q Min                         ( A.q, B.q )
+  Declare.q Max                         ( A.q, B.q )
+  Declare.q AbsQ                        ( Number.q )
+  Declare.q AlignToMultipleOf           ( Number.q, Alignment.q )
+  Declare.i CompareFnQ                  ( *Left, *Right )
+  Declare.i StartsWith                  ( Prefix.s, String.s )
+  Declare.i EndsWith                    ( Suffix.s, String.s )
+  Declare.i StringEqual                 ( String1.s, String2.s, NumChars.i )
+  Declare   NotImplemented              ( Message.s )
   
-  Declare.q ArrayAppendWithCapacity   ( *Ptr, *Count, *Element, SizeOfElementsInBytes.i, Increment.i = 32 )
-  Declare   ArrayEraseAtWithCapacity  ( *Ptr, *Count, Index.q, SizeOfElementsInBytes.i )
+  Declare.q ArrayAppendWithCapacity     ( *Ptr, *Count, *Element, SizeOfElementsInBytes.i, Increment.i = 32 )
+  Declare   ArrayEraseAtWithCapacity    ( *Ptr, *Count, Index.q, SizeOfElementsInBytes.i )
   
-  Declare.s StringAppendChars         ( Buffer.s, *BufferLength, *BufferCapacity, *Chars, NumChars.i )
-  Declare.q FindStringInArray         ( Array Strings.s( 1 ), String.s )
+  Declare.s StringAppendChars           ( Buffer.s, *BufferLength, *BufferCapacity, *Chars, NumChars.i )
+  Declare.q FindStringInArray           ( Array Strings.s( 1 ), String.s )
   
-  Declare.q CreateLocalFileSystem     ( RootPath.s )
-  Declare.q CreateVirtualFileSystem   ()
+  Declare.q CreateLocalFileSystem       ( RootPath.s )
+  Declare.q CreateVirtualFileSystem     ()
   
-  Declare.s ReadStringFromFile        ( *FileSystem.IFileSystem, FileHandle.q, Position.q = 0, Length = -1, Flags.i = 0 )
-  Declare   WriteStringToFile         ( *FileSystem.IFileSystem, FileHandle.q, Position.q, String.s, Index.i = -1, NumChars = -1, Flags.i = 0 )
+  Declare.q CreateLocalDirectorySystem  ( Path.s )
+  Declare.q CreateVirtualDirectorySystem()
   
-  Declare.q RunJob                    ( *Job.Job )
-  Declare   ExecuteMainThreadJobFuncs ()
+  Declare.s ReadTextFile                ( *FileSystem.IFileSystem, Path.s )
   
-  Declare.s GenerateGUID              ()
+  Declare.q RunJob                      ( *Job.Job )
+  Declare   ExecuteMainThreadJobFuncs   ()
+  
+  Declare.s GenerateGUID                ()
   
 EndDeclareModule
 
@@ -547,7 +572,7 @@ Module Utils
     
   EndProcedure
   
-  Procedure.q LFS_ReadFile( *LFS.LocalFileSystem, Handle.q, Position.q, Size.q, *Buffer )
+  Procedure.q LFS_ReadFile( *LFS.LocalFileSystem, Handle.q, Position.q, Size.q, *Buffer, Flags.i = 0 )
     
     DebugAssert( *LFS <> #Null )
     DebugAssert( Handle <> 0 )
@@ -570,7 +595,7 @@ Module Utils
     
   EndProcedure
   
-  Procedure LFS_WriteFile( *LFS.LocalFileSystem, Handle.q, Position.q, Size.q, *Buffer )
+  Procedure LFS_WriteFile( *LFS.LocalFileSystem, Handle.q, Position.q, Size.q, *Buffer, Flags.i = 0 )
     
     DebugAssert( *LFS <> #Null )
     DebugAssert( Handle <> 0 )
@@ -591,10 +616,97 @@ Module Utils
     FileSeek( File, Position, #PB_Absolute )
     WriteData( File, *Buffer, Size )
     
+    If Flags & #FileTruncate
+      TruncateFile( File )
+    EndIf
+    
   EndProcedure
   
-  Procedure LFS_TruncateFile( *LFS.LocalFileSystem, Handle.q, Position.q )
-    NotImplemented( "LFS_TruncateFile" )
+  Procedure.s LFS_ReadString( *LFS.LocalFileSystem, Handle.q, Position.q = 0, Length.q = -1, Flags.i = 0 )
+    
+    DebugAssert( *LFS <> #Null )
+    DebugAssert( Handle <> 0 )
+    DebugAssert( Position >= 0 )
+    DebugAssert( Length >= 0 Or Length = -1 )
+    
+    Define.LocalFile *File = Handle
+    DebugAssert( *File\OpenCount > 0 )
+    
+    ; Claim active handle, if we don't have one ATM.
+    If *File\HandleIndex = -1
+      *File\HandleIndex = ClaimFileHandleIndex( *LFS )
+    EndIf
+    
+    ; Read.
+    Define.q File = *LFS\Handles( *File\HandleIndex )
+    FileSeek( File, Position, #PB_Absolute )
+    If Length < 0
+      ProcedureReturn ReadString( File, #PB_UTF8 | #PB_File_IgnoreEOL )
+    Else
+      ProcedureReturn ReadString( File, #PB_UTF8 | #PB_File_IgnoreEOL, Length )
+    EndIf
+    
+  EndProcedure
+  
+  Procedure LFS_WriteString( *LFS.LocalFileSystem, Handle.q, String.s, Position.q = 0, Flags.i = 0 )
+    
+    DebugAssert( *LFS <> #Null )
+    DebugAssert( Handle <> 0 )
+    DebugAssert( Position >= 0 )
+    
+    Define.LocalFile *File = Handle
+    DebugAssert( *File\OpenCount > 0 )
+    
+    ; Claim active handle, if we don't have one ATM.
+    If *File\HandleIndex = -1
+      *File\HandleIndex = ClaimFileHandleIndex( *LFS )
+    EndIf
+    
+    ; Write.
+    Define.q File = *LFS\Handles( *File\HandleIndex )
+    FileSeek( File, Position, #PB_Absolute )
+    WriteString( File, String, #PB_UTF8 )
+    
+    If Flags & #FileTruncate
+      TruncateFile( File )
+    EndIf
+    
+  EndProcedure
+  
+  Procedure LFS_SetFileSize( *LFS.LocalFileSystem, Handle.q, Size.q )
+    
+    DebugAssert( *LFS <> #Null )
+    DebugAssert( Handle <> 0 )
+    DebugAssert( Size >= 0 )
+    
+    Define.LocalFile *File = Handle
+    DebugAssert( *File\OpenCount > 0 )
+    
+    ; Claim active handle, if we don't have one ATM.
+    If *File\HandleIndex = -1
+      *File\HandleIndex = ClaimFileHandleIndex( *LFS )
+    EndIf
+    
+    ; Truncate.
+    Define.q File = *LFS\Handles( *File\HandleIndex )
+    FileSeek( File, Size, #PB_Absolute )
+    TruncateFile( File )
+    
+  EndProcedure
+  
+  Procedure.q LFS_SizeFile( *LFS.LocalFileSystem, Handle.q )
+    
+    DebugAssert( *LFS <> #Null )
+    NotImplemented( "LFS_SizeFile" )
+    
+  EndProcedure
+  
+  Procedure.q LFS_MapFile( *LFS.LocalFileSystem, Handle.q, Position.q = 0, Size.q = -1 )
+    NotImplemented( "LFS_MapFile" )
+  EndProcedure
+  
+  Procedure LFS_UnmapFile( *LFS.LocalFileSystem, Handle.q )
+    NotImplemented( "LFS_UnmapFile" )
   EndProcedure
   
   Procedure LFS_FlushFileBuffers( *LFS.LocalFileSystem, Handle.q )
@@ -604,18 +716,21 @@ Module Utils
   Procedure.i LFS_DeleteFile( *LFS.LocalFileSystem, Path.s )
     
     DebugAssert( *LFS <> #Null )
+    NotImplemented( "LFS_DeleteFile" )
     
   EndProcedure
   
   Procedure.q LFS_GetFileSize( *LFS.LocalFileSystem, Path.s )
     
     DebugAssert( *LFS <> #Null )
+    NotImplemented( "LFS_GetFileSize" )
         
   EndProcedure
   
   Procedure.i LFS_FileExists( *LFS.LocalFileSystem, Path.s )
     
     DebugAssert( *LFS <> #Null )
+    NotImplemented( "LFS_FileExists" )
         
   EndProcedure
   
@@ -689,7 +804,12 @@ Module Utils
       Data.q @LFS_CloseFile()
       Data.q @LFS_ReadFile()
       Data.q @LFS_WriteFile()
-      Data.q @LFS_TruncateFile()
+      Data.q @LFS_ReadString()
+      Data.q @LFS_WriteString()
+      Data.q @LFS_SetFileSize()
+      Data.q @LFS_SizeFile()
+      Data.q @LFS_MapFile()
+      Data.q @LFS_UnmapFile()
       Data.q @LFS_FlushFileBuffers()
       Data.q @LFS_DeleteFile()
       Data.q @LFS_GetFileSize()
@@ -700,13 +820,19 @@ Module Utils
     
   ;............................................................................
   
+  Procedure.q CreateLocalDirectorySystem( Path.s )
+    NotImplemented( "CreateLocalDirectorySystem" )
+  EndProcedure
+  
+  ;............................................................................
+  
   EnumerationBinary
     #VirtualFile_Deleted
-    #VirtualFile_IsOpen
   EndEnumeration
   
   Structure VirtualFile
     Flags.i
+    OpenCount.i
     Path.s
     PathLowerCase.s
     Size.q
@@ -745,7 +871,7 @@ Module Utils
     For Index = 0 To NumFiles - 1
       
       If *VFS\Files( Index )\PathLowerCase = PathLowerCase
-        *VFS\Files( Index )\Flags | #VirtualFile_IsOpen
+        *VFS\Files( Index )\OpenCount + 1
         ProcedureReturn Index + 1
       EndIf
             
@@ -774,7 +900,8 @@ Module Utils
     
     *VFS\Files( Index )\Path = Path
     *VFS\Files( Index )\PathLowerCase = LCase( Path )
-    *VFS\Files( Index )\Flags = #VirtualFile_IsOpen
+    *VFS\Files( Index )\OpenCount = 1
+    *VFS\Files( Index )\Flags = 0
     
     ProcedureReturn Index + 1
     
@@ -787,11 +914,11 @@ Module Utils
     DebugAssert( Handle <= ArraySize( *VFS\Files() ) )
     
     Define.i Index = Handle - 1
-    *VFS\Files( Index )\Flags & ~#VirtualFile_IsOpen
+    *VFS\Files( Index )\OpenCount - 1
     
   EndProcedure
   
-  Procedure.q VFS_ReadFile( *VFS.VirtualFileSystem, Handle.q, Position.q, Size.q, *Buffer )
+  Procedure.q VFS_ReadFile( *VFS.VirtualFileSystem, Handle.q, Position.q, Size.q, *Buffer, Flags.i = 0 )
     
     DebugAssert( *VFS <> #Null )
     DebugAssert( Handle > 0 )
@@ -801,7 +928,7 @@ Module Utils
     DebugAssert( *Buffer <> #Null )
     
     Define.i Index = Handle - 1
-    DebugAssert( *VFS\Files( Index )\Flags & #VirtualFile_IsOpen )
+    DebugAssert( *VFS\Files( Index )\OpenCount > 0 )
     
     Define.q FileSize = *VFS\Files( Index )\Size
     If Position + Size > FileSize
@@ -815,7 +942,7 @@ Module Utils
     
   EndProcedure
   
-  Procedure VFS_WriteFile( *VFS.VirtualFileSystem, Handle.q, Position.q, Size.q, *Buffer )
+  Procedure VFS_WriteFile( *VFS.VirtualFileSystem, Handle.q, Position.q, Size.q, *Buffer, Flags.i = 0 )
     
     DebugAssert( *VFS <> #Null )
     DebugAssert( Handle > 0 )
@@ -825,7 +952,7 @@ Module Utils
     DebugAssert( *Buffer <> #Null )
     
     Define.i Index = Handle - 1
-    DebugAssert( *VFS\Files( Index )\Flags & #VirtualFile_IsOpen )
+    DebugAssert( *VFS\Files( Index )\OpenCount > 0 )
     
     ; Enlarge memory, if necessary.
     Define.q Capacity = 0
@@ -843,14 +970,113 @@ Module Utils
     CopyMemory( *Buffer, *Contents + Position, Size )
     
     ; Update size.
-    If *VFS\Files( Index )\Size < Position + Size
+    If *VFS\Files( Index )\Size < Position + Size Or Flags & #FileTruncate
       *VFS\Files( Index )\Size = Position + Size
     EndIf
     
   EndProcedure
   
-  Procedure VFS_TruncateFile( *VFS.VirtualFileSystem, Handle.q, Position.q )
-    NotImplemented( "VFS_TruncateFile" )
+  Procedure.s VFS_ReadString( *VFS.VirtualFileSystem, Handle.q, Position.q = 0, Length.i = -1, Flags.i = 0 )
+    
+    DebugAssert( *VFS <> #Null )
+    DebugAssert( Handle > 0 )
+    DebugAssert( Handle <= ArraySize( *VFS\Files() ) )
+    DebugAssert( Position >= 0 )
+    DebugAssert( Length >= 0 Or Length = -1 )
+    
+    Define.i Index = Handle - 1
+    DebugAssert( *VFS\Files( Index )\OpenCount > 0 )
+    DebugAssert( Position <= *VFS\Files( Index )\Size )
+    DebugAssert( Position + Length <= *VFS\Files( Index )\Size )
+    
+    Define.q *Ptr = *VFS\Files( Index )\Contents
+    
+    Define.s String
+    If Length < 0
+      Define.i Size = *VFS\Files( Index )\Size - Position
+      If Size <= 0
+        String = ""
+      Else
+        String = PeekS( *Ptr + Position, Size, #PB_UTF8 | #PB_ByteLength )
+      EndIf
+    Else
+      String = PeekS( *Ptr + Position, Length, #PB_UTF8 )
+    EndIf
+    
+    ProcedureReturn String
+    
+  EndProcedure
+  
+  Procedure VFS_WriteString( *VFS.VirtualFileSystem, Handle.q, String.s, Position.q = 0, Flags.i = 0 )
+    
+    DebugAssert( *VFS <> #Null )
+    DebugAssert( Handle > 0 )
+    DebugAssert( Handle <= ArraySize( *VFS\Files() ) )
+    DebugAssert( Position >= 0 )
+    
+    Define.q Size = StringByteLength( String, #PB_UTF8 )
+    
+    Define.i Index = Handle - 1
+    DebugAssert( *VFS\Files( Index )\OpenCount > 0 )
+    
+    ; Enlarge memory, if necessary.
+    Define.q Capacity = 0
+    Define *Contents = *VFS\Files( Index )\Contents
+    If *Contents <> #Null
+      Capacity = MemorySize( *Contents )
+    EndIf
+    If Position + Size > Capacity
+      Capacity = AlignToMultipleOf( Max( Capacity + 1024, Position + Size ), 1024 )
+      *Contents = ReAllocateMemory( *Contents, Capacity, #PB_Memory_NoClear )
+      *VFS\Files( Index )\Contents = *Contents
+    EndIf
+    
+    ; Write.
+    Define.q NumBytes = PokeS( *Contents + Position, String, Size, #PB_UTF8 | #PB_String_NoZero )
+    DebugAssert( NumBytes = Size )
+    
+    ; Update size.
+    If *VFS\Files( Index )\Size < Position + Size Or Flags & #FileTruncate
+      *VFS\Files( Index )\Size = Position + Size
+    EndIf
+    
+  EndProcedure
+  
+  Procedure VFS_SetFileSize( *VFS.VirtualFileSystem, Handle.q, Size.q )
+    NotImplemented( "VFS_SetFileSize" )
+  EndProcedure
+  
+  Procedure.q VFS_SizeFile( *VFS.VirtualFileSystem, Handle.q )
+    
+    DebugAssert( *VFS <> #Null )
+    DebugAssert( Handle > 0 )
+    DebugAssert( Handle <= ArraySize( *VFS\Files() ) )
+    
+    Define.i Index = Handle - 1
+    ProcedureReturn *VFS\Files( Index )\Size
+    
+  EndProcedure
+  
+  Procedure.q VFS_MapFile( *VFS.VirtualFileSystem, Handle.q, Position.q = 0, Size.q = -1 )
+    
+    DebugAssert( *VFS <> #Null )
+    DebugAssert( Handle > 0 )
+    DebugAssert( Handle <= ArraySize( *VFS\Files() ) )
+    DebugAssert( Position >= 0 )
+    
+    ;;REVIEW: do we need to protected against resizing here? disallow resizing while a file is mapped?
+    
+    Define.i Index = Handle - 1
+    DebugAssert( Position <= *VFS\Files( Index )\Size )
+    Define.q *Ptr = *VFS\Files( Index )\Contents + Position
+    DebugAssert( Size = -1 Or Position + Size <= *VFS\Files( Index )\Size )
+    
+    ProcedureReturn *Ptr
+    
+  EndProcedure
+  
+  Procedure VFS_UnmapFile( *VFS.VirtualFileSystem, Handle.q )
+    ; Nothing to do.
   EndProcedure
   
   Procedure VFS_FlushFileBuffers( *VFS.VirtualFileSystem, Handle.q )
@@ -984,7 +1210,12 @@ Module Utils
       Data.q @VFS_CloseFile()
       Data.q @VFS_ReadFile()
       Data.q @VFS_WriteFile()
-      Data.q @VFS_TruncateFile()
+      Data.q @VFS_ReadString()
+      Data.q @VFS_WriteString()
+      Data.q @VFS_SetFileSize()
+      Data.q @VFS_SizeFile()
+      Data.q @VFS_MapFile()
+      Data.q @VFS_UnmapFile()
       Data.q @VFS_FlushFileBuffers()
       Data.q @VFS_DeleteFile()
       Data.q @VFS_GetFileSize()
@@ -995,14 +1226,135 @@ Module Utils
   
   ;............................................................................
   
-  Procedure.s ReadStringFromFile( *FileSystem.IFileSystem, FileHandle.q, Position.q = 0, Length = -1, Flags.i = 0 )
-    NotImplemented( "ReadStringFromFile" )
+  Structure VirtualDirectorySystem
+    *Methods
+    Map Directories.q()
+  EndStructure
+  
+  Procedure.q CreateVirtualDirectorySystem()
+    
+    Define.VirtualDirectorySystem *VDS = AllocateStructure( VirtualDirectorySystem )
+    *VDS\Methods = ?VirtualDirectorySystem_VTable
+    ProcedureReturn *VDS
+    
   EndProcedure
+  
+  Procedure VDS_Destroy( *VDS.VirtualDirectorySystem )
+    
+    DebugAssert( *VDS <> #Null )
+    ForEach *VDS\Directories()
+      Define.IFileSystem *FileSystem =  *VDS\Directories()
+      *FileSystem\Destroy()
+    Next
+    FreeStructure( *VDS )
+    
+  EndProcedure
+  
+  Procedure.q VDS_CreateDirectory( *VDS.VirtualDirectorySystem, Path.s )
+    
+    DebugAssert( *VDS <> #Null )
+    DebugAssert( Len( Path ) > 0 )
+    
+    If Not EndsWith( #PS$, Path )
+      Path + #PS$
+    EndIf
+    
+    Define.IFileSystem *FileSystem
+    
+    Define.s PathLowerCase = LCase( Path )
+    Define.q *Element = FindMapElement( *VDS\Directories(), PathLowerCase )
+    If *Element = #Null
+      *FileSystem = CreateVirtualFileSystem()
+      Define.q *Element = AddMapElement( *VDS\Directories(), PathLowerCase )
+      PokeQ( *Element, *FileSystem )
+    Else
+      *FileSystem = PeekQ( *Element )
+    EndIf
+    
+    ProcedureReturn *FileSystem
+    
+  EndProcedure
+  
+  Procedure.q VDS_OpenDirectory( *VDS.VirtualDirectorySystem, Path.s )
+    
+    DebugAssert( *VDS <> #Null )
+    DebugAssert( Len( Path ) > 0 )
+    
+    If Not EndsWith( #PS$, Path )
+      Path + #PS$
+    EndIf
+    
+    Define.IFileSystem *FileSystem = #Null
+    
+    Define.s PathLowerCase = LCase( Path )
+    Define.q *Element = FindMapElement( *VDS\Directories(), PathLowerCase )
+    If *Element <> #Null
+      *FileSystem = PeekQ( *Element )
+    EndIf
+    
+    ProcedureReturn *FileSystem
+    
+  EndProcedure
+  
+  Procedure VDS_DeleteDirectory( *VDS.VirtualDirectorySystem, Path.s )
+    NotImplemented( "VDS_DeleteDirectory" )
+  EndProcedure
+  
+  Procedure VDS_DirectoryExists( *VDS.VirtualDirectorySystem, Path.s )
+    
+    DebugAssert( *VDS <> #Null )
+    DebugAssert( Len( Path ) > 0 )
+    
+    If Not EndsWith( #PS$, Path )
+      Path + #PS$
+    EndIf
+    
+    Define.s PathLowerCase = LCase( Path )
+    If FindMapElement( *VDS\Directories(), PathLowerCase ) <> #Null
+      ProcedureReturn #True
+    EndIf
+    
+    ProcedureReturn #False
+    
+  EndProcedure
+  
+  Procedure.i VDS_ListDirectories( *VDS.VirtualDirectorySystem, Path.s, Pattern.s, Array Directories.s( 1 ) )
+    
+    DebugAssert( *VDS <> #Null )
+    
+    ProcedureReturn 0
+    
+  EndProcedure
+  
+  DataSection
+    
+    VirtualDirectorySystem_VTable:
+      Data.q @VDS_Destroy()
+      Data.q @VDS_CreateDirectory()
+      Data.q @VDS_OpenDirectory()
+      Data.q @VDS_DeleteDirectory()
+      Data.q @VDS_DirectoryExists()
+      Data.q @VDS_ListDirectories()
+    
+  EndDataSection
   
   ;............................................................................
   
-  Procedure WriteStringToFile( *FileSystem.IFileSystem, FileHandle.q, Position.q, String.s, Index.i = -1, NumChars = -1, Flags.i = 0 )
-    NotImplemented( "WriteStringToFile" )
+  Procedure.s ReadTextFile( *FileSystem.IFileSystem, Path.s )
+    
+    DebugAssert( *FileSystem <> #Null )
+    DebugAssert( Len( Path ) > 0 )
+    
+    Define.q Handle = *FileSystem\OpenFile( Path )
+    If Handle = 0
+      ProcedureReturn ""
+    EndIf
+    
+    Define.s Contents = *FileSystem\ReadString( Handle )
+    *FileSystem\CloseFile( Handle )
+    
+    ProcedureReturn Contents
+    
   EndProcedure
   
   ;............................................................................
@@ -1133,6 +1485,46 @@ EndProcedureUnit
 
 ;..............................................................................
 
+ProcedureUnit CanCreateVirtualDirectorySystem()
+
+  UseModule Utils
+
+  Define.IDirectorySystem *VDS = CreateVirtualDirectorySystem()
+  
+  Assert( *VDS <> #Null )
+  
+  Dim Directories.s( 0 )
+  
+  Assert( *VDS\ListDirectories( "", "", Directories() ) = 0 )
+  Assert( ArraySize( Directories() ) = 0 )
+  Assert( *VDS\DirectoryExists( "Directory1" ) = #False )
+  
+  Define.IFileSystem *Directory1 = *VDS\CreateDirectory( "Directory1" )
+  
+  Assert( *Directory1 <> #Null )
+  Assert( *VDS\DirectoryExists( "Directory1" ) = #True )
+  Assert( *VDS\DirectoryExists( "Directory2" ) = #False )
+  
+  Define.IFileSystem *Directory2 = *VDS\CreateDirectory( "Directory2" )
+  
+  Assert( *Directory2 <> #Null )
+  Assert( *Directory1 <> *Directory2 )
+  Assert( *VDS\DirectoryExists( "Directory1" ) = #True )
+  Assert( *VDS\DirectoryExists( "Directory2" ) = #True )
+  
+  ; Calling CreateDirectory with existing directory should just open it.
+  Define.IFileSystem *Directory2a = *VDS\CreateDirectory( "Directory2" )
+  Assert( *Directory2a = *Directory2 )
+  
+  ;;TODO: ListDirectories
+  ;;TODO: DeleteDirectory
+  
+  *VDS\Destroy()
+
+EndProcedureUnit
+
+;..............................................................................
+
 ProcedureUnit CanRunJobs()
 
   ;;... continue here
@@ -1140,8 +1532,8 @@ ProcedureUnit CanRunJobs()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 627
-; FirstLine = 609
-; Folding = ---------
-; Markers = 659
+; CursorPosition = 1323
+; FirstLine = 1268
+; Folding = ------------
+; Markers = 654,1008,1010
 ; EnableXP
