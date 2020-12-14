@@ -18,7 +18,6 @@ XIncludeFile "Shell.pb"             ; Modes, commands.
 XIncludeFile "TextEditorShell.pb"   ; Text editing commands.
 
 ; NOTE: Unit tests can be debugged by simply invoking them here.
-CanCreateVirtualDirectorySystem()
 
 ;TextRenderer (dirty rects and render buffers)
 ;Configuration/settings
@@ -311,7 +310,7 @@ Until Event = #PB_Event_CloseWindow
 ;can mutate text in String
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
-; IDE Options = PureBasic 5.72 (Windows - x64)
+; IDE Options = PureBasic 5.73 LTS (Windows - x64)
 ; CursorPosition = 20
 ; Folding = -
 ; EnableXP

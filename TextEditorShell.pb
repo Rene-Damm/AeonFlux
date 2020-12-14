@@ -5,6 +5,8 @@ XIncludeFile "TextEditor.pb"
 XIncludeFile "Shell.pb"
 XIncludeFile "Workspace.pb"
 
+;;REVIEW: should all blob editors derive from the same base editor shell?
+
 ; Adds a command model around TextEditor.
 ; Command model is very Vim-inspired.
 DeclareModule TextEditorShell
@@ -12,21 +14,19 @@ DeclareModule TextEditorShell
   UseModule TextEditor
   UseModule TextBuffer
   UseModule Workspace
+  UseModule Shell
     
   ;............................................................................
   
-  Enumeration TextEditorMode
-    #NormalMode
+  ; Extend EditorMode with text editor-specific modes.
+  Enumeration EditorMode
     #InsertMode
   EndEnumeration
   
   ;............................................................................
   
-  Structure TextEditorShell
+  Structure TextEditorShell Extends Editor
     
-    *Methods
-    
-    Mode.i
     Editor.TextEditor
     Buffer.TextBuffer
     *Workspace.Workspace
@@ -49,7 +49,8 @@ Module TextEditorShell
   
   ;............................................................................
   
-  Enumeration TextEditorCommands
+  ; Extend EditorCommands with text editor-specific commands.
+  Enumeration EditorCommands
     
     ; Mode commands.
     #TextEditorEnterInsertMode
@@ -68,6 +69,8 @@ Module TextEditorShell
     ; Insertion commands.
     #TextEditorInsertLineBreak
     
+    ; Workspace commands.
+    
   EndEnumeration
   
   ;............................................................................
@@ -79,7 +82,6 @@ Module TextEditorShell
     InitializeStructure( *Editor, TextEditorShell )
     
     *Editor\Methods = ?TextEditor_VTable
-    *Editor\Mode = #NormalMode
     
     CreateTextBuffer( @*Editor\Buffer )
     CreateTextEditor( @*Editor\Editor, @*Editor\Buffer )
@@ -98,21 +100,6 @@ Module TextEditorShell
   
   ;............................................................................
   
-  Procedure.s TextEditor_GetMode( *Editor.TextEditorShell )
-    
-    DebugAssert( *Editor <> #Null )
-    
-    Select *Editor\Mode
-      Case #InsertMode
-        ProcedureReturn "insert"
-    EndSelect
-    
-    ProcedureReturn "normal"
-
-  EndProcedure
-  
-  ;............................................................................
-  
   Procedure.q TextEditor_GetCommands( *Editor.TextEditorShell, *OutCommands.Command )
     
     DebugAssert( *Editor <> #Null )
@@ -124,7 +111,7 @@ Module TextEditorShell
   
   ;............................................................................
   
-  Procedure TextEditor_ExecuteCommand( *Editor.TextEditorShell, CommandId.i, Map Parameters.ParameterValue() )
+  Procedure TextEditor_ExecuteCommand( *Editor.TextEditorShell, CommandId.i, Arguments.s )
     
     DebugAssert( *Editor <> #Null )
     
@@ -182,15 +169,15 @@ Module TextEditorShell
     EditorData( TextEditor )
     
     TextEditor_Commands:
-      CommandData( #TextEditorEnterInsertMode, "insert", "normal", "i", 0 )
-      CommandData( #TextEditorExitInsertMode, "exit", "insert", "<ESC>", 0 )
-      CommandData( #TextEditorMoveLeft, "move_left", "normal", "h", 0 )
-      CommandData( #TextEditorMoveRight, "move_right", "normal", "l", 0 )
-      CommandData( #TextEditorMoveUp, "move_up", "normal", "k", 0 )
-      CommandData( #TextEditorMoveDown, "move_down", "normal", "j", 0 )
-      CommandData( #TextEditorMoveNextLine, "move_next_line", "normal", "<CR>", 0 )
-      CommandData( #TextEditorDeleteLeft, "delete_left", "insert", "<BS>", 0 )
-      CommandData( #TextEditorInsertLineBreak, "insert_line_break", "insert", "<CR>", 0 )
+      CommandData( #TextEditorEnterInsertMode, "insert", #NormalMode, "i" )
+      CommandData( #TextEditorExitInsertMode, "exit", #InsertMode, "<ESC>" )
+      CommandData( #TextEditorMoveLeft, "move_left", #NormalMode, "h" )
+      CommandData( #TextEditorMoveRight, "move_right", #NormalMode, "l" )
+      CommandData( #TextEditorMoveUp, "move_up", #NormalMode, "k" )
+      CommandData( #TextEditorMoveDown, "move_down", #NormalMode, "j" )
+      CommandData( #TextEditorMoveNextLine, "move_next_line", #NormalMode, "<CR>" )
+      CommandData( #TextEditorDeleteLeft, "delete_left", #InsertMode, "<BS>" )
+      CommandData( #TextEditorInsertLineBreak, "insert_line_break", #InsertMode, "<CR>" )
     
   EndDataSection
   
@@ -211,13 +198,13 @@ ProcedureUnit CanCreateTextEditorInShell()
   Define.TextEditorShell *TextEditor = *Editor
   
   Assert( *Editor\GetType() = "TextEditor" )
-  Assert( *Editor\GetMode() = "normal" )
+  Assert( *TextEditor\Mode = #NormalMode )
   Assert( GetCurrentEditor( @Shell ) = *Editor )
   
   ; Insert text.
   SendShellInput( @Shell, "itext" )
   
-  Assert( *Editor\GetMode() = "insert" )
+  Assert( *TextEditor\Mode = #InsertMode )
   Assert( GetTextBufferLength( *TextEditor\Buffer ) = 4 )
   Assert( GetTextBufferLineCount( *TextEditor\Buffer ) = 1 )
   Assert( ReadStringFromTextBuffer( *TextEditor\Buffer ) = "text" )
@@ -225,7 +212,7 @@ ProcedureUnit CanCreateTextEditorInShell()
   ; Delete text.
   SendShellInput( @Shell, "<BS><BS>" )
   
-  Assert( *Editor\GetMode() = "insert" )
+  Assert( *TextEditor\Mode = #InsertMode )
   Assert( GetTextBufferLength( *TextEditor\Buffer ) = 2 )
   Assert( GetTextBufferLineCount( *TextEditor\Buffer ) = 1 )
   Assert( ReadStringFromTextBuffer( *TextEditor\Buffer ) = "te" )
@@ -287,6 +274,7 @@ ProcedureUnit CanConnectTextBlobToTextEditorShell()
   UseModule TextBuffer
   UseModule TextEditor
   UseModule Workspace
+  UseModule Root
   
   ;how is the editor connected to a workspace?
   
@@ -301,14 +289,16 @@ ProcedureUnit CanConnectTextBlobToTextEditorShell()
   Define.IEditor *Editor = CreateEditor( @Shell, SizeOf( TextEditorShell ), @CreateTextEditorShell() )
   Define.TextEditorShell *TextEditor = *Editor
   
+  ExecuteShellCommand( @Shell, "edit", "testblob" )
+  
   ;create text blob and connect it to text editor shell
   ;put text into shell (saving should happen automatically)
   ;modify the text
 
 EndProcedureUnit
 
-; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 305
-; FirstLine = 246
+; IDE Options = PureBasic 5.73 LTS (Windows - x64)
+; CursorPosition = 215
+; FirstLine = 176
 ; Folding = --
 ; EnableXP

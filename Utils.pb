@@ -5,6 +5,11 @@ DeclareModule Utils
   #MIN_QUAD = -9223372036854775808
   #MAX_QUAD = 9223372036854775807
   
+  #SPACE = 32
+  #NEWLINE = 10
+  #RETURN = 13
+  #EQUALS = 61
+  
   ;............................................................................
   
   Macro QUOTE
@@ -96,9 +101,11 @@ DeclareModule Utils
   Declare.i EndsWith                    ( Suffix.s, String.s )
   Declare.i StringEqual                 ( String1.s, String2.s, NumChars.i )
   Declare   NotImplemented              ( Message.s )
+  Declare.i IsWhitespace                ( Character.c )
   
   Declare.q ArrayAppendWithCapacity     ( *Ptr, *Count, *Element, SizeOfElementsInBytes.i, Increment.i = 32 )
   Declare   ArrayEraseAtWithCapacity    ( *Ptr, *Count, Index.q, SizeOfElementsInBytes.i )
+  Declare.q ArrayIndexOf                ( *Array, Count, *Element, SizeOfElementsInBytes.i )
   
   Declare.s StringAppendChars           ( Buffer.s, *BufferLength, *BufferCapacity, *Chars, NumChars.i )
   Declare.q FindStringInArray           ( Array Strings.s( 1 ), String.s )
@@ -283,6 +290,19 @@ Module Utils
   
   ;............................................................................
   
+  Procedure.i IsWhitespace( Character.c )
+    
+    Select Character
+      Case #TAB, #SPACE, #NEWLINE, #RETURN
+        ProcedureReturn #True
+    EndSelect
+    
+    ProcedureReturn #False
+    
+  EndProcedure
+  
+  ;............................................................................
+  
   Procedure NotImplemented( Message.s )
     
     ShowDebugOutput()
@@ -343,6 +363,27 @@ Module Utils
     EndIf
     
     PokeQ( *Count, Count - 1 )
+    
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure.q ArrayIndexOf( *Array, Count, *Element, SizeOfElementsInBytes.i )
+    
+    If *Array = #Null Or Count = 0
+      ProcedureReturn -1
+    EndIf
+    
+    Define.q Index
+    Define *Ptr = *Array
+    For Index = 0 To Count - 1
+      If CompareMemory( *Ptr, *Element, SizeOfElementsInBytes )
+        ProcedureReturn Index
+      EndIf
+      *Ptr + SizeOfElementsInBytes
+    Next
+    
+    ProcedureReturn -1
     
   EndProcedure
   
@@ -1531,9 +1572,9 @@ ProcedureUnit CanRunJobs()
 
 EndProcedureUnit
 
-; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 1323
-; FirstLine = 1268
+; IDE Options = PureBasic 5.73 LTS (Windows - x64)
+; CursorPosition = 382
+; FirstLine = 342
 ; Folding = ------------
-; Markers = 654,1008,1010
+; Markers = 695,1049,1051
 ; EnableXP

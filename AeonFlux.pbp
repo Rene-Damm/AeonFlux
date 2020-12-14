@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<project xmlns="http://www.purebasic.com/namespace" version="1.0" creator="PureBasic 5.72 (Windows - x64)">
+<project xmlns="http://www.purebasic.com/namespace" version="1.0" creator="PureBasic 5.73 LTS (Windows - x64)">
   <section name="config">
     <options closefiles="1" openmode="0" name="AeonFlux"/>
   </section>
   <section name="data">
     <explorer view="C:\Program Files\PureBasic\Examples\" pattern="0"/>
     <log show="0"/>
-    <lastopen date="2020-11-16 10:15" user="Rene Damm" host="VORKRAFT"/>
+    <lastopen date="2020-12-08 12:14" user="Rene Damm" host="VORKRAFT"/>
   </section>
   <section name="files">
     <file name="AeonFlux.pb">
       <config load="1" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="9b53ce9bf9a09b922e16131bc409c5e5"/>
+      <fingerprint md5="392ab469aa34f8f728b88793ebd12853"/>
     </file>
     <file name="GapBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
@@ -28,11 +28,11 @@
     </file>
     <file name="Root.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="eebb3074ef139281677a936e6e00348f"/>
+      <fingerprint md5="6922e35c5bc96cf8e1887ad56929d82c"/>
     </file>
     <file name="Shell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="a358c327027fd2f3622f0836a13539c2"/>
+      <fingerprint md5="2de04007451411b1f34a9f49ec8f9296"/>
     </file>
     <file name="TextBuffer.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
@@ -44,7 +44,7 @@
     </file>
     <file name="TextEditorShell.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="0ea3459732573373a77b852d6172c904"/>
+      <fingerprint md5="76df702d5daad3d2ca1f70c4dc4a4c51"/>
     </file>
     <file name="TextMarker.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
@@ -52,7 +52,7 @@
     </file>
     <file name="Utils.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
-      <fingerprint md5="a068e081fe174661ffb00ec1e1da1259"/>
+      <fingerprint md5="daf829a67af4c0551eb78d31c104395f"/>
     </file>
     <file name="Workspace.pb">
       <config load="0" scan="1" panel="1" warn="1" lastopen="1" panelstate="+"/>
