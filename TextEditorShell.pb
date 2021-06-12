@@ -29,6 +29,7 @@ DeclareModule TextEditorShell
     
     Editor.TextEditor
     Buffer.TextBuffer
+    Flags.i
     *Workspace.Workspace
     *TextBlob.Blob
     
@@ -46,8 +47,14 @@ Module TextEditorShell
   UseModule TextEditor
   UseModule TextBuffer
   UseModule Shell
+  UseModule Workspace
+  UseModule Root
   
   ;............................................................................
+  
+  EnumerationBinary TextEditorFlags
+    #TextBufferDirty
+  EndEnumeration
   
   ; Extend EditorCommands with text editor-specific commands.
   Enumeration EditorCommands
@@ -70,8 +77,28 @@ Module TextEditorShell
     #TextEditorInsertLineBreak
     
     ; Workspace commands.
+    #TextEditorEditBlob
     
   EndEnumeration
+  
+  ;............................................................................
+  
+  Procedure FlushTextBufferInternal( *Editor.TextEditorShell )
+    
+    If *Editor\Workspace = #Null
+      ProcedureReturn
+    EndIf
+    
+    DebugAssert( *Editor\TextBlob <> #Null )
+    
+    If Not ( *Editor\Flags & #TextBufferDirty )
+      ProcedureReturn
+    EndIf
+    
+    WriteTextBufferToFile( @*Editor\Buffer, *Editor\Workspace\Files, *Editor\TextBlob\FileHandle )
+    *Editor\Flags & ~#TextBufferDirty
+    
+  EndProcedure
   
   ;............................................................................
   
@@ -105,7 +132,7 @@ Module TextEditorShell
     DebugAssert( *Editor <> #Null )
     
     PokeQ( *OutCommands, ?TextEditor_Commands )
-    ProcedureReturn 9
+    ProcedureReturn 10
     
   EndProcedure
   
@@ -122,6 +149,7 @@ Module TextEditorShell
         
       Case #TextEditorExitInsertMode
         *Editor\Mode = #NormalMode
+        FlushTextBufferInternal( *Editor )
         
       Case #TextEditorMoveLeft
         MoveCursorInTextEditor( @*Editor\Editor, -1, 0 )
@@ -144,9 +172,28 @@ Module TextEditorShell
         
       Case #TextEditorDeleteLeft
         DeleteCharactersInTextEditor( @*Editor\Editor, -1 )
+        *Editor\Flags | #TextBufferDirty
         
       Case #TextEditorInsertLineBreak
         InsertCharacterIntoTextEditor( @*Editor\Editor, #LF )
+        *Editor\Flags | #TextBufferDirty
+        
+      Case #TextEditorEditBlob
+        Define.s BlobNameOrId = StringField( Arguments, 1, ~" \t" )
+        Define.s WorkspaceNameOrId = StringField( Arguments, 2, ~" \t" )
+        Define.Workspace *Workspace = Root\CurrentWorkspace
+        If WorkspaceNameOrId <> ""
+          NotImplemented( "Edit blob in workspace other than current" )
+        EndIf
+        Define *Blob = FindBlob( *Workspace, BlobNameOrId )
+        ;;REVIEW: what should we do if the blob type isn't text? hex editing?
+        If *Blob = #Null
+          *Blob = CreateBlob( *Workspace, #TextBlob, BlobNameOrId )
+        EndIf
+        ;;TODO: load text from blob into buffer
+        *Editor\TextBlob = *Blob
+        *Editor\Workspace = *Workspace
+        *Editor\Flags & ~#TextBufferDirty
         
     EndSelect
     
@@ -159,6 +206,7 @@ Module TextEditorShell
     DebugAssert( *Editor <> #Null )
     
     InsertStringIntoTextEditor( @*Editor\Editor, Input )
+    *Editor\Flags | #TextBufferDirty
     
   EndProcedure
   
@@ -178,6 +226,7 @@ Module TextEditorShell
       CommandData( #TextEditorMoveNextLine, "move_next_line", #NormalMode, "<CR>" )
       CommandData( #TextEditorDeleteLeft, "delete_left", #InsertMode, "<BS>" )
       CommandData( #TextEditorInsertLineBreak, "insert_line_break", #InsertMode, "<CR>" )
+      CommandData( #TextEditorEditBlob, "edit", #NormalMode, "" )
     
   EndDataSection
   
@@ -275,30 +324,57 @@ ProcedureUnit CanConnectTextBlobToTextEditorShell()
   UseModule TextEditor
   UseModule Workspace
   UseModule Root
+  UseModule Utils
   
-  ;how is the editor connected to a workspace?
+  ResetStructure( @Root, Root )
   
-  ;command to load text
-  ; - parameter for blob name or id
-  ; - optional parameter for workspace name or id (if not supplied, uses current workspace)
+  Define.IFileSystem *RootSystem = CreateVirtualFileSystem()
+  Define.IDirectorySystem *WorkspaceLocation = CreateVirtualDirectorySystem()
+  Define.IDirectorySystem *ProjectLocation = CreateVirtualDirectorySystem()
   
-  ;remember: saving is automatic! (no manual :w necessary as in Vim)
+  LoadRoot( "Default", *RootSystem, *WorkspaceLocation, *ProjectLocation )
+  
+  Define.Workspace *Workspace = Root\CurrentWorkspace
+  
+  ; Remember: saving is automatic! (no manual :w necessary as in Vim)
   
   Define.Shell Shell
   CreateShell( @Shell )
   Define.IEditor *Editor = CreateEditor( @Shell, SizeOf( TextEditorShell ), @CreateTextEditorShell() )
   Define.TextEditorShell *TextEditor = *Editor
   
-  ExecuteShellCommand( @Shell, "edit", "testblob" )
+  SendShellInput( @Shell, ":edit testblob<RET>" )
   
-  ;create text blob and connect it to text editor shell
-  ;put text into shell (saving should happen automatically)
-  ;modify the text
+  Assert( GetBlobCount( *Workspace ) = 1 )
+  Define.Blob *TestBlob = FindBlob( *Workspace, "testblob" )
+  Assert( *TestBlob <> #Null )
+  Assert( *TestBlob\Name = "testblob" )
+  Assert( *TestBlob\BlobType = #TextBlob )
+  Assert( *Workspace\Files\FileExists( *TestBlob\Id + ".blob" ) )
+  Assert( ReadTextFile( *Workspace\Files, *TestBlob\Id + ".blob" ) = "" )
+  Assert( ReadStringFromTextBuffer( *TextEditor\Buffer ) = "" )
+  Assert( *TextEditor\TextBlob = *TestBlob )
+  Assert( *TextEditor\Workspace = *Workspace )
+  
+  SendShellInput( @Shell, "itest" )
+  
+  ; Should save only when we exit insert mode.
+  Assert( ReadTextFile( *Workspace\Files, *TestBlob\Id + ".blob" ) = "" )
+  Assert( ReadStringFromTextBuffer( *TextEditor\Buffer ) = "test" )
+  
+  SendShellInput( @Shell, "<ESC>" )
+  
+  Assert( ReadTextFile( *Workspace\Files, *TestBlob\Id + ".blob" ) = "test" )
+  Assert( ReadStringFromTextBuffer( *TextEditor\Buffer ) = "test" )
+  
+  ;;TODO: modify the text and check it gets saved
+  
+  DestroyShell( @Shell )
 
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.73 LTS (Windows - x64)
-; CursorPosition = 215
-; FirstLine = 176
+; CursorPosition = 366
+; FirstLine = 312
 ; Folding = --
 ; EnableXP

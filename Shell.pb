@@ -40,17 +40,17 @@ DeclareModule Shell
   
   Macro EditorData( Name )
     Name#_VTable:
-      Data.q @Name#_GetType()
-      Data.q @Name#_GetCommands()
-      Data.q @Name#_ExecuteCommand()
-      Data.q @Name#_SendInput()
+      Data.i @Name#_GetType()
+      Data.i @Name#_GetCommands()
+      Data.i @Name#_ExecuteCommand()
+      Data.i @Name#_SendInput()
   EndMacro
 
   Macro CommandData( Id, Name, Mode, Binding )
     Data.i Id
     Data.i Mode
-    Data.q @Name
-    Data.q @Binding
+    Data.i @Name
+    Data.i @Binding
   EndMacro
     
   ;............................................................................
@@ -161,7 +161,7 @@ Module Shell
     
     InitializeStructure( *Shell, Shell )
     *Shell\CurrentEditor = -1
-    *Shell\Editors = AllocateMemory( SizeOf( Quad ) * 64 )
+    *Shell\Editors = AllocateMemory( SizeOf( Integer ) * 64 )
     
   EndProcedure
   
@@ -231,6 +231,7 @@ Module Shell
     
     DebugAssert( *Shell <> #Null )
     DebugAssert( SizeInBytes > 0 )
+    DebugAssert( SizeInBytes > SizeOf( Editor ) )
     DebugAssert( *CreateFn <> #Null )
     
     ; Allocate.
@@ -259,7 +260,7 @@ Module Shell
     *Editor\Type = *EditorType
     *Editor\Mode = #NormalMode
     *Editor\CommandMode = #NormalMode
-    Define.i Index = ArrayAppendWithCapacity( @*Shell\Editors, @*Shell\NumEditors, @*Editor, SizeOf( Quad ) )
+    Define.i Index = ArrayAppendWithCapacity( @*Shell\Editors, @*Shell\NumEditors, @*Editor, SizeOf( Integer ) )
     
     ;;TODO: properly "make current"
     ; Make current.
@@ -277,7 +278,7 @@ Module Shell
     DebugAssert( *Editor <> #Null )
     DebugAssert( *Shell\NumEditors > 0 )
     
-    Define.q Index = ArrayIndexOf( *Shell\Editors, *Shell\NumEditors, @*Editor, SizeOf( Quad ) )
+    Define.q Index = ArrayIndexOf( *Shell\Editors, *Shell\NumEditors, @*Editor, SizeOf( Integer ) )
     DebugAssert( Index >= 0 )
     If Index < 0
       ProcedureReturn
@@ -286,7 +287,7 @@ Module Shell
     ;;TODO: must give editor a shot at cleanup (so it can free whatever memory it has itself allocated)
     
     FreeMemory( *Editor )
-    ArrayEraseAtWithCapacity( @*Shell\Editors, @*Shell\NumEditors, Index, SizeOf( Quad ) )
+    ArrayEraseAtWithCapacity( @*Shell\Editors, @*Shell\NumEditors, Index, SizeOf( Integer ) )
     
     If *Shell\CurrentEditor = Index
       ;;TODO: switch to one of the other still existing editors (if any)
@@ -320,7 +321,7 @@ Module Shell
       ProcedureReturn #Null
     EndIf
     
-    Define *Editor = PeekQ( *Shell\Editors + Index * SizeOf( Quad ) )
+    Define *Editor = PeekI( *Shell\Editors + Index * SizeOf( Integer ) )
     ProcedureReturn *Editor
     
   EndProcedure
@@ -339,7 +340,7 @@ Module Shell
       ;;TODO: diagnose error
       ProcedureReturn #Null
     EndIf
-    Define.Command *Command = PeekQ( *CommandPtrPtr )
+    Define.Command *Command = PeekI( *CommandPtrPtr )
     
     ProcedureReturn *Command
     
@@ -369,9 +370,12 @@ Module Shell
           *Editor\Mode = *Editor\CommandMode
           *Editor\CommandMode = #NormalMode
           
-          Define *Ptr = @*Editor\CommandInput
+          Define.s Input = *Editor\CommandInput
+          Define *Ptr = @Input
           Define.s CommandName
           Define.s CommandArgs
+          
+          *Editor\CommandInput = ""
           
           While #True
             
@@ -379,9 +383,9 @@ Module Shell
             If Char = #NUL Or IsWhitespace( Char )
               
               CompilerIf #PB_Unicode
-                CommandName = PeekS( @*Editor\CommandInput, ( *Ptr - @*Editor\CommandInput ) / SizeOf( Character ) )
+                CommandName = PeekS( @Input, ( *Ptr - @Input ) / SizeOf( Character ) )
               CompilerElse
-                CommandName = PeekS( @*Editor\CommandInput, *Ptr - @*Editor\CommandInput, #PB_Ascii )
+                CommandName = PeekS( @Input, *Ptr - @Input, #PB_Ascii )
               CompilerEndIf
               
               ; Check for arguments.
@@ -396,6 +400,7 @@ Module Shell
                 Wend
                 If Char <> #NUL
                   Define *ArgStart = *Ptr
+                  ;;TODO: automatically trim whitespace at right end
                   While #True
                     *Ptr + SizeOf( Character )
                     Char = PeekC( *Ptr )
@@ -425,7 +430,6 @@ Module Shell
             EndIf
             
           Wend
-          *Editor\CommandInput = ""
           
       EndSelect
       
@@ -450,7 +454,7 @@ Module Shell
       ProcedureReturn
     EndIf
     
-    Define.Editor *Editor = PeekQ( *Shell\Editors + *Shell\CurrentEditor * SizeOf( Quad ) )
+    Define.Editor *Editor = PeekI( *Shell\Editors + *Shell\CurrentEditor * SizeOf( Integer ) )
     
     Define.Command *Command = LookupShellCommandInternal( *Editor, Command )
     If *Command <> #Null
@@ -476,7 +480,7 @@ Module Shell
       HaveStartingWith = #True
     EndIf
     
-    Define.Editor *Editor = PeekQ( *Shell\Editors + *Shell\CurrentEditor * SizeOf( Quad ) )
+    Define.Editor *Editor = PeekI( *Shell\Editors + *Shell\CurrentEditor * SizeOf( Integer ) )
     Define.ModeRecord *Mode = @*Editor\Type\Modes( *Editor\Mode )
     
     ForEach *Mode\Commands()
@@ -512,7 +516,7 @@ Module Shell
       ProcedureReturn
     EndIf
     
-    Define.Editor *Editor = PeekQ( *Shell\Editors + *Shell\CurrentEditor * SizeOf( Quad ) )
+    Define.Editor *Editor = PeekI( *Shell\Editors + *Shell\CurrentEditor * SizeOf( Integer ) )
     Define.ModeRecord *Mode = @*Editor\Type\Modes( *Editor\Mode )
     
     Define *Ptr = @Input
@@ -522,6 +526,29 @@ Module Shell
     Define.i BufferLength = 0
     Define.i BufferCapacity = 0
     Define.i InAngleBrackets = #False
+    
+    Macro FlushInput
+      
+      If BufferLength > 0
+                
+        If *Editor\Mode = #CommandMode
+          
+          *Editor\CommandInput + Buffer
+          
+        Else
+          
+          Define.IEditor *EditorInterface = *Editor
+          *EditorInterface\SendInput( Buffer )
+          
+        EndIf
+        
+        BufferLength = 0
+        
+      EndIf
+      
+    EndMacro
+    
+    ;;FIXME: need to guarantee null terminator on Buffer
     
     ; Parse input.
     While #True
@@ -545,10 +572,12 @@ Module Shell
         
         ; End of angle bracket sequence.
         InAngleBrackets = #False
-        Define.i SequenceLength = *Ptr - *StartPtr + 2 ; Include '>'
+        Define.i SequenceLength = ( *Ptr - *StartPtr ) / SizeOf( Character ) + 1 ; Include '>'
         If SequenceLength > 0
           
-          Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, SequenceLength / SizeOf( Character ) )
+          FlushInput
+          
+          Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, SequenceLength )
           Define.Binding *Binding = FindMapElement( *Mode\Bindings(), Buffer )
           BufferLength = 0
           
@@ -571,7 +600,7 @@ Module Shell
           Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, ( *Ptr - *StartPtr ) / SizeOf( Character ) )
         EndIf
         
-      Else
+      ElseIf Not InAngleBrackets
         
         ; Check if current character is mapped to a command.
         Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *Ptr, 1 )
@@ -581,7 +610,7 @@ Module Shell
         If *Binding <> #Null
           ; Yes, it is. Flush prior input (if any) and execute command.
           If *StartPtr <> *Ptr
-            Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, ( *Ptr - *StartPtr ) / SizeOf( Character ) )
+            Buffer = StringAppendChars( Buffer, @BufferLength, @BufferCapacity, *StartPtr, ( *Ptr - *StartPtr ) / SizeOf( Character ) - 1 )
           EndIf
           *StartPtr = *Ptr + SizeOf( Character )
           *Command = *Binding\Command
@@ -590,21 +619,7 @@ Module Shell
       EndIf
       
       ; Send input.
-      If BufferLength > 0
-        
-        If *Editor\Mode = #CommandMode
-          
-          *Editor\CommandInput + Buffer
-          
-        Else
-          
-          Define.IEditor *EditorInterface = *Editor
-          *EditorInterface\SendInput( Buffer )
-          BufferLength = 0
-          
-        EndIf
-        
-      EndIf
+      FlushInput
       
       ; Execute command.
       If *Command <> #Null
@@ -623,6 +638,8 @@ Module Shell
     If InAngleBrackets
       ;;TODO: error
     EndIf
+    
+    UndefineMacro FlushInput
     
   EndProcedure
   
@@ -971,8 +988,8 @@ ProcedureUnit CanSwitchEditorModesInShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.73 LTS (Windows - x64)
-; CursorPosition = 279
-; FirstLine = 254
-; Folding = ----
-; Markers = 593,772
+; CursorPosition = 612
+; FirstLine = 576
+; Folding = -----
+; Markers = 530,606,789
 ; EnableXP

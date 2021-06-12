@@ -11,8 +11,10 @@ DeclareModule Workspace
   ;............................................................................
   
   Enumeration BlobType
+    
     #InvalidBlob
     #TextBlob
+    
   EndEnumeration
   
   Enumeration BlobSubType
@@ -21,7 +23,7 @@ DeclareModule Workspace
     
     ; Text subtypes.
     #TextTypeGeneric
-    #TextTypeFlux
+    #TextTypeCode
     
   EndEnumeration
 
@@ -69,13 +71,12 @@ DeclareModule Workspace
   
   Declare.q CreateBlob( *Workspace.Workspace, BlobType.i, Name.s )
   Declare.i GetBlobCount( *Workspace.Workspace )
+  Declare.q FindBlob( *Workspace.Workspace, NameOrId.s )
   
   CompilerIf #False
   Declare.q OpenBlob( *Workspace.Workspace, Id.s )
   Declare   DeleteBlob( *Workspace.Workspace, *Blob.Blob )
   Declare   UpdateBlob( *Workspace.Workspace, *Blob.Blob )
-  Declare.q FindBlobById( *Workspace.Workspace, Id.s )
-  Declare.q FindBlobByName( *Workspace.Workspace, Name.s )
   CompilerEndIf
   
 EndDeclareModule
@@ -202,7 +203,6 @@ Module Workspace
         
         Define.s MetaFilePath = Files( Index )
         Define.s Id = GetFilePart( MetaFilePath, #PB_FileSystem_NoExtension )
-        Define.s BlobFilePath = Id + ".blob"
         
         Define.Blob *Blob = AllocateStructure( Blob )
         
@@ -212,7 +212,7 @@ Module Workspace
         ReadMetaFile( *Blob, *Files )
         
         *Workspace\BlobsById( Id ) = *Blob
-        *Workspace\BlobsByName( *Blob\Name ) = *Blob
+        *Workspace\BlobsByName( LCase( *Blob\Name ) ) = *Blob
         
       Next
     EndIf
@@ -259,7 +259,7 @@ Module Workspace
     *Blob\MetaFileHandle = *Workspace\Files\CreateFile( *Blob\Id + ".meta" )
     
     *Workspace\BlobsById( *Blob\Id ) = *Blob
-    *Workspace\BlobsByName( *Blob\Name ) = *Blob
+    *Workspace\BlobsByName( LCase( *Blob\Name ) ) = *Blob
     
     WriteMetaFile( *Blob, *Workspace\Files )
     
@@ -274,6 +274,32 @@ Module Workspace
     DebugAssert( *Workspace <> #Null )
     
     ProcedureReturn MapSize( *Workspace\BlobsById() )
+    
+  EndProcedure
+  
+  ;............................................................................
+  
+  Procedure.q FindBlob( *Workspace.Workspace, NameOrId.s )
+    
+    DebugAssert( *Workspace <> #Null )
+    DebugAssert( Len( NameOrId ) > 0 )
+    
+    Define *Element = FindMapElement( *Workspace\BlobsById(), NameOrId )
+    If *Element <> #Null
+      ProcedureReturn PeekQ( *Element )
+    EndIf
+    
+    *Element = FindMapElement( *Workspace\BlobsByName(), NameOrId )
+    If *Element <> #Null
+      ProcedureReturn PeekQ( *Element )
+    EndIf
+    
+    *Element = FindMapElement( *Workspace\BlobsByName(), LCase( NameOrId ) )
+    If *Element <> #Null
+      ProcedureReturn PeekQ( *Element )
+    EndIf
+    
+    ProcedureReturn #Null
     
   EndProcedure
   
@@ -293,6 +319,7 @@ ProcedureUnit CanSaveAndLoadWorkspace()
   LoadWorkspace( *Workspace, *Files )
   
   Assert( GetBlobCount( *Workspace ) = 0 )
+  Assert( FindBlob( *Workspace, "FirstBlob" ) = #Null )
   
   Define.Blob *FirstBlob = CreateBlob( *Workspace, #TextBlob, "FirstBlob" )
   
@@ -304,6 +331,9 @@ ProcedureUnit CanSaveAndLoadWorkspace()
   Assert( *FirstBlob\MetaFileHandle <> 0 )
   Assert( *Files\FileExists( *FirstBlob\Id + ".blob" ) = #True )
   Assert( *Files\FileExists( *FirstBlob\Id + ".meta" ) = #True )
+  Assert( FindBlob( *Workspace, "FirstBlob" ) = *FirstBlob )
+  Assert( FindBlob( *Workspace, "firstblOB" ) = *FirstBlob )
+  Assert( FindBlob( *Workspace, *FirstBlob\Id ) = *FirstBlob )
   
   Define.s FirstBlobId = *FirstBlob\Id
   
@@ -316,14 +346,19 @@ ProcedureUnit CanSaveAndLoadWorkspace()
   LoadWorkspace( *Workspace, *Files )
   
   Assert( GetBlobCount( *Workspace ) = 1 )
+  *FirstBlob = FindBlob( *Workspace, "FirstBlob" )
+  Assert( *FirstBlob <> #Null )
+  Assert( *FirstBlob\Name = "FirstBlob" )
+  Assert( *FirstBlob\Id = FirstBlobId )
+  Assert( FindBlob( *Workspace, "firstblOB" ) = *FirstBlob )
+  Assert( FindBlob( *Workspace, FirstBlobId ) = *FirstBlob )
   
   UnloadWorkspace( *Workspace )
   FreeStructure( *Workspace )
 
 EndProcedureUnit
 
-; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 56
-; FirstLine = 24
+; IDE Options = PureBasic 5.73 LTS (Windows - x64)
+; CursorPosition = 16
 ; Folding = --
 ; EnableXP

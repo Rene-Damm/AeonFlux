@@ -2,6 +2,7 @@
 
 XIncludeFile "GapBuffer.pb"
 XIncludeFile "TextMarker.pb"
+XIncludeFile "Utils.pb"
 
 ;;REVIEW: Have reference counts on buffers?
 ;;REVIEW: For very large files, consider having a tree of gap buffers
@@ -13,6 +14,7 @@ DeclareModule TextBuffer
   
   UseModule GapBuffer
   UseModule TextMarker
+  UseModule Utils
  
   ;............................................................................
   
@@ -47,6 +49,7 @@ DeclareModule TextBuffer
   Declare.s ReadStringFromTextBuffer( *Buffer.TextBuffer, Position.q = 0, Count.q = -1 )
   Declare.s ReadLineFromTextBuffer( *Buffer.TextBuffer, LineNumber.i )
   Declare   DeleteRangeFromTextBuffer( *Buffer.TextBuffer, Position.q, Count.q )
+  Declare   WriteTextBufferToFile( *Buffer.TextBuffer, *FileSystem.IFileSystem, FileHandle.q )
   
   CompilerIf #False
   Declare   ReplaceUTF8InTextBuffer( *Buffer.TextBuffer, ... )
@@ -316,6 +319,22 @@ Module TextBuffer
     
   EndProcedure
   
+  ;............................................................................
+  
+  Procedure WriteTextBufferToFile( *Buffer.TextBuffer, *FileSystem.IFileSystem, FileHandle.q )
+    
+    DebugAssert( *Buffer <> #Null )
+    DebugAssert( *FileSystem <> #Null )
+    DebugAssert( FileHandle <> 0 )
+    
+    Define.q LengthLeft = GetGapBufferLengthLeft( @*Buffer\Text )
+    Define.q LengthRight = GetGapBufferLengthRight( @*Buffer\Text )
+    
+    *FileSystem\WriteFile( FileHandle, 0, LengthLeft, *Buffer\Text\LeftBuffer )
+    *FileSystem\WriteFile( FileHandle, LengthLeft, LengthRight, *Buffer\Text\RightBufferStart, #FileTruncate )
+    
+  EndProcedure
+  
 EndModule
 
 ;..............................................................................
@@ -424,9 +443,9 @@ ProcedureUnit CanDeleteFromTextBuffer()
 
 EndProcedureUnit
 
-; IDE Options = PureBasic 5.72 (Windows - x64)
-; CursorPosition = 306
-; FirstLine = 270
+; IDE Options = PureBasic 5.73 LTS (Windows - x64)
+; CursorPosition = 330
+; FirstLine = 310
 ; Folding = ---
-; Markers = 263,290
+; Markers = 266
 ; EnableXP

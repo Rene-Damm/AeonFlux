@@ -990,25 +990,31 @@ Module Utils
     DebugAssert( Handle <= ArraySize( *VFS\Files() ) )
     DebugAssert( Position >= 0 )
     DebugAssert( Size >= 0 )
-    DebugAssert( *Buffer <> #Null )
     
     Define.i Index = Handle - 1
     DebugAssert( *VFS\Files( Index )\OpenCount > 0 )
     
-    ; Enlarge memory, if necessary.
-    Define.q Capacity = 0
-    Define *Contents = *VFS\Files( Index )\Contents
-    If *Contents <> #Null
-      Capacity = MemorySize( *Contents )
+    ; We allow calling WriteFile with a NULL buffer if size is zero.
+    ; Can be useful for truncating a file.
+    If Size > 0
+      DebugAssert( *Buffer <> #Null )
+   
+      ; Enlarge memory, if necessary.
+      Define.q Capacity = 0
+      Define *Contents = *VFS\Files( Index )\Contents
+      If *Contents <> #Null
+        Capacity = MemorySize( *Contents )
+      EndIf
+      If Position + Size > Capacity
+        Capacity = AlignToMultipleOf( Max( Capacity + 1024, Position + Size ), 1024 )
+        *Contents = ReAllocateMemory( *Contents, Capacity, #PB_Memory_NoClear )
+        *VFS\Files( Index )\Contents = *Contents
+      EndIf
+      
+      ; Copy.
+      CopyMemory( *Buffer, *Contents + Position, Size )
+      
     EndIf
-    If Position + Size > Capacity
-      Capacity = AlignToMultipleOf( Max( Capacity + 1024, Position + Size ), 1024 )
-      *Contents = ReAllocateMemory( *Contents, Capacity, #PB_Memory_NoClear )
-      *VFS\Files( Index )\Contents = *Contents
-    EndIf
-    
-    ; Copy.
-    CopyMemory( *Buffer, *Contents + Position, Size )
     
     ; Update size.
     If *VFS\Files( Index )\Size < Position + Size Or Flags & #FileTruncate
@@ -1172,7 +1178,8 @@ Module Utils
     Define.i Index
     For Index = 0 To NumFiles - 1
       
-      If *VFS\Files( Index )\PathLowerCase = PathLowerCase
+      Define.s Path = *VFS\Files( Index )\PathLowerCase
+      If Path = PathLowerCase
         ProcedureReturn #True
       EndIf
       
@@ -1573,8 +1580,8 @@ ProcedureUnit CanRunJobs()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.73 LTS (Windows - x64)
-; CursorPosition = 382
-; FirstLine = 342
+; CursorPosition = 1181
+; FirstLine = 1165
 ; Folding = ------------
-; Markers = 695,1049,1051
+; Markers = 695,1055,1057
 ; EnableXP

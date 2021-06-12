@@ -19,6 +19,7 @@ XIncludeFile "TextEditorShell.pb"   ; Text editing commands.
 
 ; NOTE: Unit tests can be debugged by simply invoking them here.
 
+
 ;TextRenderer (dirty rects and render buffers)
 ;Configuration/settings
 
@@ -252,6 +253,10 @@ Repeat
   
 Until Event = #PB_Event_CloseWindow
 
+;[ ] Unbreak all tests
+;[ ] Ensure that the interactive functionality in the app works (right now, can't insert text)
+
+
 ;[X] Can delete range in TextBuffer
 ;[X] Can backspace in editor shell
 ;[X] Switch main over to using new text editing backend
@@ -312,6 +317,7 @@ Until Event = #PB_Event_CloseWindow
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.73 LTS (Windows - x64)
 ; CursorPosition = 20
+; FirstLine = 10
 ; Folding = -
 ; EnableXP
 ; HideErrorLog
