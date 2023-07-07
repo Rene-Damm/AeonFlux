@@ -1,0 +1,9 @@
+{
+  "Projects"        : [],
+  "CurrentWorkspace": "Workspace1",
+  "Workspaces"      : [
+      {
+        "Name": "Workspace1"
+      }
+    ]
+}

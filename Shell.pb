@@ -113,8 +113,8 @@ DeclareModule Shell
   EndStructure
   
   Structure Shell
-    NumEditors.i
     CurrentEditor.i
+    NumEditors.q
     *Editors
     Map EditorTypes.EditorType()
     
@@ -278,7 +278,7 @@ Module Shell
     DebugAssert( *Editor <> #Null )
     DebugAssert( *Shell\NumEditors > 0 )
     
-    Define.q Index = ArrayIndexOf( *Shell\Editors, *Shell\NumEditors, @*Editor, SizeOf( Integer ) )
+    Define.i Index = ArrayIndexOf( *Shell\Editors, *Shell\NumEditors, @*Editor, SizeOf( Integer ) )
     DebugAssert( Index >= 0 )
     If Index < 0
       ProcedureReturn
@@ -454,7 +454,7 @@ Module Shell
       ProcedureReturn
     EndIf
     
-    Define.Editor *Editor = PeekI( *Shell\Editors + *Shell\CurrentEditor * SizeOf( Integer ) )
+    Define.Editor *Editor = GetCurrentEditor( *Shell )
     
     Define.Command *Command = LookupShellCommandInternal( *Editor, Command )
     If *Command <> #Null
@@ -480,7 +480,7 @@ Module Shell
       HaveStartingWith = #True
     EndIf
     
-    Define.Editor *Editor = PeekI( *Shell\Editors + *Shell\CurrentEditor * SizeOf( Integer ) )
+    Define.Editor *Editor = GetCurrentEditor( *Shell )
     Define.ModeRecord *Mode = @*Editor\Type\Modes( *Editor\Mode )
     
     ForEach *Mode\Commands()
@@ -516,7 +516,7 @@ Module Shell
       ProcedureReturn
     EndIf
     
-    Define.Editor *Editor = PeekI( *Shell\Editors + *Shell\CurrentEditor * SizeOf( Integer ) )
+    Define.Editor *Editor = GetCurrentEditor( *Shell )
     Define.ModeRecord *Mode = @*Editor\Type\Modes( *Editor\Mode )
     
     Define *Ptr = @Input
@@ -988,8 +988,8 @@ ProcedureUnit CanSwitchEditorModesInShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.73 LTS (Windows - x64)
-; CursorPosition = 612
-; FirstLine = 576
+; CursorPosition = 482
+; FirstLine = 444
 ; Folding = -----
 ; Markers = 530,606,789
 ; EnableXP

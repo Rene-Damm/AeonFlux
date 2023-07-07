@@ -305,7 +305,7 @@ Module Utils
   
   Procedure NotImplemented( Message.s )
     
-    ShowDebugOutput()
+    Debug( "Not implemented: " + Message )
     DebuggerError( "Not implemented: " + Message )
     End -1
     
@@ -480,16 +480,24 @@ Module Utils
   EndProcedure
   CompilerEndIf
 
-  Procedure.i ClaimFileHandleIndex( *LFS.LocalFileSystem )
+  Procedure ClaimFileHandleIndex( *LFS.LocalFileSystem, *File.LocalFile )
+    
+    DebugAssert( *LFS <> #Null )
+    DebugAssert( *File <> #Null )
+    
+    If *File\HandleIndex <> -1
+      ProcedureReturn
+    EndIf
     
     Define.i Index = 0
     Define.q LeastRecentlyUsedEntryTimestamp = 0
     Define.i IndexOfLeastRecentlyUsedEntry = -1
     
+    ; Grab unused or least recently used entry.
     For Index = 0 To #MAX_OPEN_HANDLES - 1
       If *LFS\Handles( Index )\File = #Null
         ; Unused entry.
-        ProcedureReturn Index
+        Break
       EndIf
       
       ; Keep track of least recently used entry.
@@ -500,12 +508,18 @@ Module Utils
       EndIf
     Next
     
-    ;;does PureBasic really need this or does it already virtualize this internally?
-    ;;don't open file right away... defer until we read or write
+    If Index > #MAX_OPEN_HANDLES - 1
+      ; Close least recently used file.
+      Index = IndexOfLeastRecentlyUsedEntry
+      *LFS\Handles( Index )\File\HandleIndex = -1
+      CloseFile( *LFS\Handles( Index )\Handle )
+      *LFS\Handles( Index )\Handle = 0
+    EndIf
     
-    ; Claim least recently used entry.
-    *LFS\Handles( IndexOfLeastRecentlyUsedEntry )\File\HandleIndex = -1
-    CloseFile( *LFS\Handles( IndexOfLeastRecentlyUsedEntry )\Handle )
+    ; Open file.
+    Define.s FullPath = *LFS\RootPath + *File\Path
+    *LFS\Handles( Index )\Handle = OpenFile( #PB_Any, FullPath )
+    *File\HandleIndex = Index
     
   EndProcedure
   
@@ -565,9 +579,12 @@ Module Utils
         ProcedureReturn 0
       EndIf
       
-      *File = AddMapElement( *LFS\Files(), PathLowerCase )
+      *File = AllocateStructure( LocalFile )
       *File\Path = Path
       *File\HandleIndex = -1
+      
+      *Entry = AddMapElement( *LFS\Files(), PathLowerCase )
+      PokeQ( *Entry, *File )
       
     EndIf
     
@@ -583,15 +600,18 @@ Module Utils
     ; Make sure it doesn't already exist.
     Define.s PathLowerCase = LCase( Path )
     Define.LocalFile *File = FindMapElement( *LFS\Files(), PathLowerCase )
-    If *File <> #Null
-      ProcedureReturn #Null
+    If *File = #Null
+      
+      *File = AllocateStructure( LocalFile )
+      *File\Path = Path
+      *File\HandleIndex = -1
+      
+      *Entry = AddMapElement( *LFS\Files(), PathLowerCase )
+      PokeQ( *Entry, *File )
+      
     EndIf
     
     ; Add it to the map.
-    *File = AddMapElement( *LFS\Files(), PathLowerCase )
-    *File\Path = Path
-    *File\HandleIndex = -1
-    
     *File\OpenCount + 1
     
     ;;REVIEW: should this also create a file on disk right away?
@@ -608,7 +628,15 @@ Module Utils
     Define.LocalFile *File = Handle
     If *File\OpenCount > 0
       *File\OpenCount - 1
-      ;;TODO
+    EndIf
+    If *File\OpenCount = 0
+      If *File\HandleIndex <> -1
+        CloseFile( *LFS\Handles( *File\HandleIndex )\Handle )
+        *LFS\Handles( *File\HandleIndex )\File = #Null
+        *LFS\Handles( *File\HandleIndex )\Handle = 0
+      EndIf
+      DeleteMapElement( *LFS\Files(), LCase( *File\Path ) )
+      FreeStructure( *File )
     EndIf
     
   EndProcedure
@@ -625,12 +653,10 @@ Module Utils
     DebugAssert( *File\OpenCount > 0 )
     
     ; Claim active handle, if we don't have one ATM.
-    If *File\HandleIndex = -1
-      *File\HandleIndex = ClaimFileHandleIndex( *LFS )
-    EndIf
+    ClaimFileHandleIndex( *LFS, *File )
     
     ; Read.
-    Define.q File = *LFS\Handles( *File\HandleIndex )
+    Define.q File = *LFS\Handles( *File\HandleIndex )\Handle
     FileSeek( File, Position, #PB_Absolute )
     ProcedureReturn ReadData( File, *Buffer, Size )
     
@@ -648,12 +674,10 @@ Module Utils
     DebugAssert( *File\OpenCount > 0 )
     
     ; Claim active handle, if we don't have one ATM.
-    If *File\HandleIndex = -1
-      *File\HandleIndex = ClaimFileHandleIndex( *LFS )
-    EndIf
+    ClaimFileHandleIndex( *LFS, *File )
     
     ; Write.
-    Define.q File = *LFS\Handles( *File\HandleIndex )
+    Define.q File = *LFS\Handles( *File\HandleIndex )\Handle
     FileSeek( File, Position, #PB_Absolute )
     WriteData( File, *Buffer, Size )
     
@@ -674,12 +698,10 @@ Module Utils
     DebugAssert( *File\OpenCount > 0 )
     
     ; Claim active handle, if we don't have one ATM.
-    If *File\HandleIndex = -1
-      *File\HandleIndex = ClaimFileHandleIndex( *LFS )
-    EndIf
+    ClaimFileHandleIndex( *LFS, *File )
     
     ; Read.
-    Define.q File = *LFS\Handles( *File\HandleIndex )
+    Define.q File = *LFS\Handles( *File\HandleIndex )\Handle
     FileSeek( File, Position, #PB_Absolute )
     If Length < 0
       ProcedureReturn ReadString( File, #PB_UTF8 | #PB_File_IgnoreEOL )
@@ -699,12 +721,10 @@ Module Utils
     DebugAssert( *File\OpenCount > 0 )
     
     ; Claim active handle, if we don't have one ATM.
-    If *File\HandleIndex = -1
-      *File\HandleIndex = ClaimFileHandleIndex( *LFS )
-    EndIf
+    ClaimFileHandleIndex( *LFS, *File )
     
     ; Write.
-    Define.q File = *LFS\Handles( *File\HandleIndex )
+    Define.q File = *LFS\Handles( *File\HandleIndex )\Handle
     FileSeek( File, Position, #PB_Absolute )
     WriteString( File, String, #PB_UTF8 )
     
@@ -724,12 +744,10 @@ Module Utils
     DebugAssert( *File\OpenCount > 0 )
     
     ; Claim active handle, if we don't have one ATM.
-    If *File\HandleIndex = -1
-      *File\HandleIndex = ClaimFileHandleIndex( *LFS )
-    EndIf
+    ClaimFileHandleIndex( *LFS, *File )
     
     ; Truncate.
-    Define.q File = *LFS\Handles( *File\HandleIndex )
+    Define.q File = *LFS\Handles( *File\HandleIndex )\Handle
     FileSeek( File, Size, #PB_Absolute )
     TruncateFile( File )
     
@@ -764,14 +782,28 @@ Module Utils
   Procedure.q LFS_GetFileSize( *LFS.LocalFileSystem, Path.s )
     
     DebugAssert( *LFS <> #Null )
-    NotImplemented( "LFS_GetFileSize" )
+    
+    Define.s FullPath = *LFS\RootPath + Path
+    ProcedureReturn FileSize( FullPath )
         
   EndProcedure
   
   Procedure.i LFS_FileExists( *LFS.LocalFileSystem, Path.s )
     
     DebugAssert( *LFS <> #Null )
-    NotImplemented( "LFS_FileExists" )
+    
+    Define.s PathLowerCase = LCase( Path )
+    Define.LocalFile *File = FindMapElement( *LFS\Files(), PathLowerCase )
+    If *File <> #Null
+      ProcedureReturn #True
+    EndIf
+          
+    Define.s FullPath = *LFS\RootPath + Path
+    If FileSize( FullPath ) >= 0
+      ProcedureReturn #True
+    EndIf    
+    
+    ProcedureReturn #False
         
   EndProcedure
   
@@ -861,9 +893,129 @@ Module Utils
     
   ;............................................................................
   
+  Structure LocalDirectorySystem
+    *Methods
+    RootPath.s
+    Map Directories.q()
+  EndStructure
+  
   Procedure.q CreateLocalDirectorySystem( Path.s )
-    NotImplemented( "CreateLocalDirectorySystem" )
+    
+    DebugAssert( Len( Path ) > 0 )
+    
+    If Not EndsWith( Path, #PS$ )
+      Path + #PS$
+    EndIf
+    
+    Define.LocalDirectorySystem *LDS = AllocateStructure( LocalDirectorySystem )
+    *LDS\Methods = ?LocalDirectorySystem_VTable
+    *LDS\RootPath = Path
+    
+    ProcedureReturn *LDS
+    
   EndProcedure
+  
+  Procedure LDS_Destroy( *LDS.LocalDirectorySystem )
+    
+    DebugAssert( *LDS <> #Null )
+    ForEach *LDS\Directories()
+      Define.IFileSystem *FileSystem =  *LDS\Directories()
+      *FileSystem\Destroy()
+    Next    
+    FreeStructure( *LDS )
+    
+  EndProcedure
+  
+  Procedure.q LDS_CreateDirectory( *LDS.LocalDirectorySystem, Path.s )
+    
+    DebugAssert( *LDS <> #Null )
+    DebugAssert( Len( Path ) > 0 )
+    
+    If Not EndsWith( #PS$, Path )
+      Path + #PS$
+    EndIf
+    
+    Define.IFileSystem *FileSystem
+    
+    Define.s PathLowerCase = LCase( Path )
+    Define.q *Element = FindMapElement( *LDS\Directories(), PathLowerCase )
+    If *Element = #Null
+      Define.s FullPath = *LDS\RootPath + Path
+      If FileSize( FullPath ) <> -2 And CreateDirectory( FullPath ) = 0
+        ProcedureReturn #Null
+      EndIf 
+      *FileSystem = CreateLocalFileSystem( FullPath )
+      Define.q *Element = AddMapElement( *LDS\Directories(), PathLowerCase )
+      PokeQ( *Element, *FileSystem )
+    Else
+      *FileSystem = PeekQ( *Element )
+    EndIf
+    
+    ProcedureReturn *FileSystem    
+    
+  EndProcedure
+  
+  Procedure.q LDS_OpenDirectory( *LDS.LocalDirectorySystem, Path.s )
+    
+    DebugAssert( *LDS <> #Null )
+    DebugAssert( Len( Path ) > 0 )
+    
+    If Not EndsWith( #PS$, Path )
+      Path + #PS$
+    EndIf
+    
+    Define.IFileSystem *FileSystem
+    
+    Define.s PathLowerCase = LCase( Path )
+    Define.q *Element = FindMapElement( *LDS\Directories(), PathLowerCase )
+    If *Element = #Null
+      Define.s FullPath = *LDS\RootPath + Path
+      If FileSize( FullPath ) <> -2
+        ProcedureReturn #Null
+      EndIf 
+      *FileSystem = CreateLocalFileSystem( FullPath )
+      Define.q *Element = AddMapElement( *LDS\Directories(), PathLowerCase )
+      PokeQ( *Element, *FileSystem )
+    Else
+      *FileSystem = PeekQ( *Element )
+    EndIf
+    
+    ProcedureReturn *FileSystem   
+    
+  EndProcedure
+  
+  Procedure LDS_DeleteDirectory( *LDS.LocalDirectorySystem, Path.s )
+    NotImplemented( "LDS_DeleteDirectory" )
+  EndProcedure
+  
+  Procedure LDS_DirectoryExists( *LDS.LocalDirectorySystem, Path.s )
+    
+    DebugAssert( *LDS <> #Null )
+    DebugAssert( Len( Path ) > 0 )
+    
+    NotImplemented( "LDS_DirectoryExists" )
+    
+  EndProcedure
+  
+  Procedure.i LDS_ListDirectories( *LDS.LocalDirectorySystem, Path.s, Pattern.s, Array Directories.s( 1 ) )
+    
+    DebugAssert( *LDS <> #Null )
+    
+    NotImplemented( "LDS_ListDirectories" )
+    
+  EndProcedure
+  
+  DataSection
+    
+    LocalDirectorySystem_VTable:
+      Data.q @LDS_Destroy()
+      Data.q @LDS_CreateDirectory()
+      Data.q @LDS_OpenDirectory()
+      Data.q @LDS_DeleteDirectory()
+      Data.q @LDS_DirectoryExists()
+      Data.q @LDS_ListDirectories()
+    
+  EndDataSection  
   
   ;............................................................................
   
@@ -925,6 +1077,8 @@ Module Utils
   Procedure.q VFS_CreateFile( *VFS.VirtualFileSystem, Path.s, Flags.i )
     
     DebugAssert( *VFS <> #Null )
+    
+    ;;REVIEW: shouldn't this look for whether the file already exists?
     
     ;;OPTIMIZE: this can be optimized by keeping deleted files on a list (storing the index in the structure)
     ; Find unused slot.
@@ -1580,8 +1734,8 @@ ProcedureUnit CanRunJobs()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.73 LTS (Windows - x64)
-; CursorPosition = 1181
-; FirstLine = 1165
-; Folding = ------------
-; Markers = 695,1055,1057
+; CursorPosition = 787
+; FirstLine = 758
+; Folding = -------------
+; Markers = 931,1433
 ; EnableXP

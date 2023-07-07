@@ -374,7 +374,7 @@ ProcedureUnit CanConnectTextBlobToTextEditorShell()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.73 LTS (Windows - x64)
-; CursorPosition = 366
-; FirstLine = 312
+; CursorPosition = 196
+; FirstLine = 162
 ; Folding = --
 ; EnableXP

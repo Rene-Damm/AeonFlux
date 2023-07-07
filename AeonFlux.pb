@@ -63,16 +63,17 @@ EndModule
 
 UseModule Utils
 UseModule Workspace
+UseModule Root
 
-Define.s TestDataDirectory = GetHomeDirectory() + "Dropbox" + #PS$ + "Workspaces" + #PS$ + "AeonFlux_PureBasic" + #PS$ + "_Test"
+ResetStructure( @Root, Root )
 
-;later: add two directories, one for where projects live by default and one for where workspace live by default
-Define.s ProjectPath = TestDataDirectory + #PS$ + "FirstProject" + #PS$
-Define.s WorkspacePath = TestDataDirectory + #PS$ + "FirstWorkspace" + #PS$
+Define.s RootPath = GetHomeDirectory() + "Dropbox" + #PS$ + "Workspaces" + #PS$ + "AeonFlux_PureBasic" + #PS$ + "_Test"
 
-Define.IFileSystem *WorkspaceFS = CreateLocalFileSystem( WorkspacePath )
-Define.Workspace *Workspace = AllocateStructure( Workspace )
-LoadWorkspace( *Workspace, *WorkspaceFS )
+Define.IFileSystem *RootSystem = CreateLocalFileSystem( RootPath )
+Define.IDirectorySystem *WorkspaceLocation = CreateLocalDirectorySystem( RootPath )
+Define.IDirectorySystem *ProjectLocation = CreateLocalDirectorySystem( RootPath )
+
+LoadRoot( "Default", *RootSystem, *WorkspaceLocation, *ProjectLocation )
 
 ;==============================================================================
 
@@ -88,6 +89,7 @@ CreateShell( @Shell )
 ;;TODO: this needs to be connected to a text blob
 ; Create text editor.
 Define.TextEditorShell *TextEditor = CreateEditor( @Shell, SizeOf( TextEditorShell ), @CreateTextEditorShell() )
+;SendShellInput( @Shell, ":edit testblob<RET>" )
 
 ;==============================================================================
 
@@ -316,8 +318,8 @@ Until Event = #PB_Event_CloseWindow
 ;but cannot create a substring without copying and cannot render a portion of a String only
 ;can truncate a string by writing a NUL character to memory
 ; IDE Options = PureBasic 5.73 LTS (Windows - x64)
-; CursorPosition = 20
-; FirstLine = 10
+; CursorPosition = 91
+; FirstLine = 58
 ; Folding = -
 ; EnableXP
 ; HideErrorLog

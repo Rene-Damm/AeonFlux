@@ -203,11 +203,13 @@ Module Workspace
         
         Define.s MetaFilePath = Files( Index )
         Define.s Id = GetFilePart( MetaFilePath, #PB_FileSystem_NoExtension )
+        Define.s FilePath = Id + ".blob"
         
         Define.Blob *Blob = AllocateStructure( Blob )
         
         *Blob\Id = Id
         *Blob\MetaFileHandle = *Files\OpenFile( MetaFilePath )
+        *Blob\FileHandle = *Files\CreateFile( FilePath )
         
         ReadMetaFile( *Blob, *Files )
         
@@ -359,6 +361,7 @@ ProcedureUnit CanSaveAndLoadWorkspace()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.73 LTS (Windows - x64)
-; CursorPosition = 16
+; CursorPosition = 206
+; FirstLine = 176
 ; Folding = --
 ; EnableXP

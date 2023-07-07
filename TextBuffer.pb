@@ -6,6 +6,7 @@ XIncludeFile "Utils.pb"
 
 ;;REVIEW: Have reference counts on buffers?
 ;;REVIEW: For very large files, consider having a tree of gap buffers
+;;REVIEW: Rename to TextEditBuffer?
 
 ;;TODO: styling information
 
@@ -444,8 +445,7 @@ ProcedureUnit CanDeleteFromTextBuffer()
 EndProcedureUnit
 
 ; IDE Options = PureBasic 5.73 LTS (Windows - x64)
-; CursorPosition = 330
-; FirstLine = 310
+; CursorPosition = 8
 ; Folding = ---
-; Markers = 266
+; Markers = 267
 ; EnableXP
